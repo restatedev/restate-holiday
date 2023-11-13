@@ -12,7 +12,7 @@ import {v4 as uuidv4} from "uuid";
 const dynamo = new DynamoDBClient({})
 export type CarReserveParams = { depart_city: string, depart_time: string, arrive_city: string, arrive_time: string, run_type?: string }
 const reserve = async (ctx: restate.RpcContext, tripID: string, event: CarReserveParams) => {
-  console.log("request:", tripID, JSON.stringify(event, undefined, 2));
+  console.log("reserve car:", tripID, JSON.stringify(event, undefined, 2));
 
   const carRentalReservationID = await ctx.sideEffect(async () => uuidv4())
   console.log("carRentalReservationID:", carRentalReservationID)
@@ -47,7 +47,7 @@ const reserve = async (ctx: restate.RpcContext, tripID: string, event: CarReserv
 type ConfirmParams = { booking_id: string, run_type?: string }
 
 const confirm = async (ctx: restate.RpcContext, tripID: string, event: ConfirmParams) => {
-  console.log("request:", tripID, JSON.stringify(event, undefined, 2));
+  console.log("confirm car:", tripID, JSON.stringify(event, undefined, 2));
 
   // Pass the parameter to fail this step
   if (event.run_type === 'failCarRentalConfirmation') {
@@ -77,7 +77,7 @@ const confirm = async (ctx: restate.RpcContext, tripID: string, event: ConfirmPa
 type CancelParams = { booking_id: string }
 
 const cancel = async (ctx: restate.RpcContext, tripID: string, event: CancelParams) => {
-  console.log("request:", tripID, JSON.stringify(event, undefined, 2));
+  console.log("cancel car:", tripID, JSON.stringify(event, undefined, 2));
 
 
   const del = new DeleteItemCommand({

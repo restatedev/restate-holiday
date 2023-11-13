@@ -75,6 +75,7 @@ resource "aws_lambda_function" "services" {
   function_name    = "${local.project_name}-services"
   role             = aws_iam_role.lambda_role.arn
   runtime          = "nodejs16.x"
+  handler          = "index.handler"
   filename         = "${path.module}/dist/index.zip"
   source_code_hash = filebase64sha256("${path.module}/dist/index.zip")
   environment {
@@ -156,6 +157,29 @@ resource "aws_iam_role_policy_attachment" "payment_policy_attachment" {
   policy_arn = aws_iam_policy.payment_policy.arn
 }
 
+resource "aws_iam_policy" "trip_policy" {
+  name = "${local.project_name}_trip_policy"
+
+  policy = <<POLICY
+{
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Action": [
+          "SNS:Publish"
+        ],
+        "Effect": "Allow",
+        "Resource": ${aws_sns_topic.topic.arn}
+      }
+    ]
+}
+POLICY
+}
+
+resource "aws_iam_role_policy_attachment" "trip_policy_attachment" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = aws_iam_policy.trip_policy.arn
+}
 
 
 resource "aws_dynamodb_table" "Flights" {
@@ -209,5 +233,5 @@ resource "aws_sns_topic" "topic" {
 resource "aws_sns_topic_subscription" "sms-target" {
   topic_arn = aws_sns_topic.topic.arn
   protocol  = "sms"
-  endpoint  = "+11111111111"
+  endpoint  = "+447411372882"
 }

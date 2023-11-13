@@ -2,12 +2,11 @@ import * as restate from "@restatedev/restate-sdk";
 import {TerminalError} from "@restatedev/restate-sdk";
 import {DeleteItemCommand, DynamoDBClient, PutItemCommand} from "@aws-sdk/client-dynamodb";
 import {v4 as uuidv4} from "uuid";
-import {carRentalRouter} from "./cars";
 
 const dynamo = new DynamoDBClient({})
 type ProcessParams = { flight_booking_id: string, car_booking_id: string, run_type?: string }
 const process = async (ctx: restate.RpcContext, tripID: string, event: ProcessParams) => {
-  console.log("request:", JSON.stringify(event, undefined, 2));
+  console.log("process payment:", tripID, JSON.stringify(event, undefined, 2));
 
   const paymentID = await ctx.sideEffect(async () => uuidv4())
 
@@ -41,7 +40,7 @@ const process = async (ctx: restate.RpcContext, tripID: string, event: ProcessPa
 
 type RefundParams = { payment_id: string }
 const refund = async (ctx: restate.RpcContext, tripID: string, event: RefundParams) => {
-  console.log("request:", JSON.stringify(event, undefined, 2));
+  console.log("refund payment:", tripID, JSON.stringify(event, undefined, 2));
 
   const del = new DeleteItemCommand({
     TableName: global.process.env.PAYMENTS_TABLE_NAME,
