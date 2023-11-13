@@ -1,15 +1,10 @@
 import * as restate from "@restatedev/restate-sdk";
 import {TerminalError} from "@restatedev/restate-sdk";
-import {
-  DeleteItemCommand,
-  DynamoDBClient,
-  PutItemCommand,
-  ResourceNotFoundException,
-  UpdateItemCommand
-} from "@aws-sdk/client-dynamodb";
+import {DeleteItemCommand, DynamoDBClient, PutItemCommand, UpdateItemCommand} from "@aws-sdk/client-dynamodb";
 import {v4 as uuidv4} from "uuid";
+import * as process from "process";
 
-const dynamo = new DynamoDBClient({})
+const dynamo = new DynamoDBClient({endpoint: process.env.AWS_ENDPOINT})
 export type CarReserveParams = { depart_city: string, depart_time: string, arrive_city: string, arrive_time: string, run_type?: string }
 const reserve = async (ctx: restate.RpcContext, tripID: string, event: CarReserveParams) => {
   console.log("reserve car:", tripID, JSON.stringify(event, undefined, 2));
@@ -99,3 +94,10 @@ const cancel = async (ctx: restate.RpcContext, tripID: string, event: CancelPara
 
 export const carRentalRouter = restate.keyedRouter({reserve, confirm, cancel})
 export const carRentalService: restate.ServiceApi<typeof carRentalRouter> = {path: "cars"}
+
+export const handler = restate
+  .createLambdaApiGatewayHandler()
+  .bindKeyedRouter(
+    carRentalService.path,
+    carRentalRouter,
+  ).handle()

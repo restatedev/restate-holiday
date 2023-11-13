@@ -3,7 +3,7 @@ import {TerminalError} from "@restatedev/restate-sdk";
 import {DeleteItemCommand, DynamoDBClient, PutItemCommand} from "@aws-sdk/client-dynamodb";
 import {v4 as uuidv4} from "uuid";
 
-const dynamo = new DynamoDBClient({})
+const dynamo = new DynamoDBClient({endpoint: global.process.env.AWS_ENDPOINT})
 type ProcessParams = { flight_booking_id: string, car_booking_id: string, run_type?: string }
 const process = async (ctx: restate.RpcContext, tripID: string, event: ProcessParams) => {
   console.log("process payment:", tripID, JSON.stringify(event, undefined, 2));
@@ -61,4 +61,9 @@ const refund = async (ctx: restate.RpcContext, tripID: string, event: RefundPara
 
 export const paymentsRouter = restate.keyedRouter({process, refund})
 export const paymentsService: restate.ServiceApi<typeof paymentsRouter> = {path: "payments"}
-
+export const handler = restate
+  .createLambdaApiGatewayHandler()
+  .bindKeyedRouter(
+    paymentsService.path,
+    paymentsRouter,
+  ).handle()

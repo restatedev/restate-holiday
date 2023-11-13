@@ -1,18 +1,12 @@
 import * as restate from "@restatedev/restate-sdk";
 import {TerminalError} from "@restatedev/restate-sdk";
-import {
-  DeleteItemCommand,
-  DynamoDBClient,
-  PutItemCommand,
-  ResourceNotFoundException,
-  UpdateItemCommand
-} from "@aws-sdk/client-dynamodb";
+import {DeleteItemCommand, DynamoDBClient, PutItemCommand, UpdateItemCommand} from "@aws-sdk/client-dynamodb";
 import {v4 as uuidv4} from "uuid";
-import {carRentalRouter} from "./cars";
+import process from "process";
 
-const dynamo = new DynamoDBClient({})
+const dynamo = new DynamoDBClient({endpoint: process.env.AWS_ENDPOINT})
 export type FlightReserveParams = { rental: string, rental_from: string, rental_to: string, run_type?: string }
-const reserve = async (ctx: restate.RpcContext, tripID: string, event: FlightReserveParams): Promise<{booking_id: string}> => {
+const reserve = async (ctx: restate.RpcContext, tripID: string, event: FlightReserveParams): Promise<{ booking_id: string }> => {
   console.log("reserve flight:", tripID, JSON.stringify(event, undefined, 2));
 
   const flightReservationID = await ctx.sideEffect(async () => uuidv4())
@@ -46,7 +40,7 @@ const reserve = async (ctx: restate.RpcContext, tripID: string, event: FlightRes
 
 type ConfirmParams = { booking_id: string, run_type?: string }
 
-const confirm = async (ctx: restate.RpcContext, tripID: string, event: ConfirmParams): Promise<{booking_id: string}> => {
+const confirm = async (ctx: restate.RpcContext, tripID: string, event: ConfirmParams): Promise<{ booking_id: string }> => {
   console.log("confirm flight:", tripID, JSON.stringify(event, undefined, 2));
 
   // Pass the parameter to fail this step
@@ -99,3 +93,9 @@ const cancel = async (ctx: restate.RpcContext, tripID: string, event: CancelPara
 export const flightsRouter = restate.keyedRouter({reserve, confirm, cancel})
 export const flightsService: restate.ServiceApi<typeof flightsRouter> = {path: "flights"}
 
+export const handler = restate
+  .createLambdaApiGatewayHandler()
+  .bindKeyedRouter(
+    flightsService.path,
+    flightsRouter,
+  ).handle()

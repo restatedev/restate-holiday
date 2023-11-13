@@ -2,9 +2,10 @@ import * as restate from "@restatedev/restate-sdk";
 import {carRentalRouter, carRentalService} from "./cars";
 import {flightsRouter, flightsService} from "./flights";
 import {paymentsRouter, paymentsService} from "./payments";
+import {tripsRouter, tripsService} from "./trips";
 
 export const handler = restate
-  .createLambdaApiGatewayHandler()
+  .createServer()
   .bindKeyedRouter(
     carRentalService.path,
     carRentalRouter,
@@ -16,4 +17,7 @@ export const handler = restate
   .bindKeyedRouter(
     paymentsService.path,
     paymentsRouter,
-  ).handle()
+  ).bindRouter(
+    tripsService.path,
+    tripsRouter
+  ).listen(9080)
