@@ -1,4 +1,5 @@
 .terraform
 dist
 node_modules
-terraform.tfstate*
+terraform.tfstate
+terraform.tfstate.backup
