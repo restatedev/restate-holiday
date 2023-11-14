@@ -47,18 +47,18 @@ const reserve = async (ctx: restate.RpcContext, request?: { run_type?: string, t
     "run_type": request?.run_type,
   };
 
-  const {booking_id: flight_booking_id} = await ctx.rpc(flightsService).reserve(tripID, input).catch(revert)
   compensations.push(() => ctx.send(flightsService).cancel(tripID, {booking_id: flight_booking_id}))
+  const {booking_id: flight_booking_id} = await ctx.rpc(flightsService).reserve(tripID, input).catch(revert)
 
-  const {booking_id: car_booking_id} = await ctx.rpc(carRentalService).reserve(tripID, input).catch(revert)
   compensations.push(() => ctx.send(carRentalService).cancel(tripID, {booking_id: car_booking_id}))
+  const {booking_id: car_booking_id} = await ctx.rpc(carRentalService).reserve(tripID, input).catch(revert)
 
+  compensations.push(() => ctx.send(paymentsService).refund(tripID, {payment_id}))
   const {payment_id} = await ctx.rpc(paymentsService).process(tripID, {
     car_booking_id,
     flight_booking_id,
     run_type: input.run_type
   }).catch(revert)
-  compensations.push(() => ctx.send(paymentsService).refund(tripID, {payment_id}))
 
   await ctx.rpc(flightsService).confirm(tripID, {booking_id: flight_booking_id}).catch(revert)
   await ctx.rpc(carRentalService).confirm(tripID, {booking_id: car_booking_id}).catch(revert)
