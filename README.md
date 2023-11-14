@@ -27,28 +27,51 @@ via the Restate HTTP gateway
 
 You don't need an API gateway, and you don't need any JSON workflow files!
 
-## Deploying
-`terraform apply` will set up everything you need in your AWS account. To discover the Lambdas to your managed Restate cluster:
+## Deploying against Restate managed service
+`MANAGED_SERVICE_CLUSTER=<your-cluster> cdk deploy` will set up everything you need in your AWS account. To discover the Lambdas to your managed Restate cluster:
 ```shell 
-curl  -H "Authorization: Bearer <your-cluster-token>"  https://<your-cluster>.dev.restate.cloud:9070/endpoints --json \
-  '{"arn": "<lambda-arn>", "assume_role_arn": "<assume-role-arn>"}'
+# get stack outputs into your shell
+eval $(aws cloudformation describe-stacks --stack RestateHolidayStack  --query "Stacks[].Outputs[]" | jq -r '.[] | "export " + .ExportName + "=" + .OutputValue')
+for arn in ${tripsLambdaArn} ${carsLambdaArn} ${paymentsLambdaArn} ${flightsLambdaArn}; do
+  curl -H "Authorization: Bearer <your-cluster-token>" https://<your-cluster>.dev.restate.cloud:9070/endpoints --json "{\"arn\": \"$arn\", \"assume_role_arn\": \"${assumeRoleArn}\"}"
+done
 ```
+This discovered a specific version, so you'll need to run this again if you update the Lambda functions.
 
 See [the Managed Service docs](https://docs.restate.dev/restate/managed_service#giving-permission-for-your-cluster-to-invoke-your-lambdas) for more information
 
-### Deploying locally
+## Deploying with your own Restate cluster
+
+TODO
+
+### Deploying against local Restate
 Restate services don't care if they're running in a Lambda or not. 
-You can start a local instance of the services in one binary:
+You can start a local instance of the services in one binary, which will use your local AWS creds
 ```shell
-FLIGHTS_TABLE_NAME=restate-holiday-Flights CARS_TABLE_NAME=restate-holiday-Rentals PAYMENTS_TABLE_NAME=restate-holiday-Payments npm run app-dev
+# get stack outputs into your shell
+eval $(aws cloudformation describe-stacks --stack RestateHolidayStack  --query "Stacks[].Outputs[]" | jq -r '.[] | "export " + .ExportName + "=" + .OutputValue')
+FLIGHTS_TABLE_NAME=${flightsTableName} CARS_TABLE_NAME=$carsTableName PAYMENTS_TABLE_NAME=${paymentsTableName} npm run app-dev
+```
+
+And you can start a local Restate instance and discover the service:
+```
+docker run --name restate_dev --rm -d --network=host ghcr.io/restatedev/restate-dist:0.4.0
 curl localhost:9070/endpoints --json '{"uri": "http://localhost:9080"}'
 ```
 
-You can also deploy against localstack AWS services using [`tflocal`](https://docs.localstack.cloud/user-guide/integrations/terraform/):
+You can even expose your local service over [ngrok](https://ngrok.com/) and route all new invocations from a remote cluster to your machine:
 ```shell
-tflocal init
-tflocal apply
+ngrok tcp 9080
+# get the tcp endpoint like tcp://6.tcp.eu.ngrok.io:14640 and change tcp -> http
+curl <remote-restate-cluster>/endpoints --json '{"uri": "http://6.tcp.eu.ngrok.io:14640"}'
+```
 
+You can also deploy against localstack AWS services using [`cdklocal`](https://github.com/localstack/aws-cdk-local)
+and [`awslocal`](https://github.com/localstack/awscli-local):
+```shell
+cdklocal deploy
+# get stack outputs into your shell
+eval $(awslocal cloudformation describe-stacks --stack RestateHolidayStack  --query "Stacks[].Outputs[]" | jq -r '.[] | "export " + .ExportName + "=" + .OutputValue')
 AWS_ENDPOINT=http://localhost:4566 FLIGHTS_TABLE_NAME=restate-holiday-Flights CARS_TABLE_NAME=restate-holiday-Rentals PAYMENTS_TABLE_NAME=restate-holiday-Payments npm run app-dev
 ```
 
