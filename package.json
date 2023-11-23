@@ -21,9 +21,11 @@
     "uuid": "^9.0.1"
   },
   "devDependencies": {
+    "@types/source-map-support": "^0.5.10",
     "@types/uuid": "^9.0.7",
     "aws-cdk": "^2.108.0",
     "esbuild": "^0.18.12",
+    "prettier": "3.1.0",
     "ts-node": "^10.9.1",
     "ts-node-dev": "^1.1.1",
     "typescript": "^5.0.2"
