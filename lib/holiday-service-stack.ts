@@ -9,22 +9,18 @@ import * as subscriptions from "aws-cdk-lib/aws-sns-subscriptions";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as iam from "aws-cdk-lib/aws-iam";
 
-export class RestateHolidayStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
-    super(scope, id, props);
-
-    new RestateHoliday(this, "RestateHoliday");
-  }
+export interface HolidayServiceStackProps extends cdk.StackProps {
+  /**
+   * If set, create a role for the Restate managed service to assume with permission to invoke Lambda handlers.
+   */
+  managedServiceClusterId?: string;
 }
 
-export class RestateHoliday extends Construct {
-  constructor(scope: Construct, id: string) {
-    super(scope, id);
+export class HolidayServiceStack extends cdk.Stack {
+  constructor(scope: Construct, id: string, props?: HolidayServiceStackProps) {
+    super(scope, id, props);
 
-    /**
-     * Create Dynamo DB tables for flights, car rental reservations, and payments information.
-     */
-
+    // Create Dynamo DB tables for flights, car rental reservations, and payments information.
     const flightTable = new dynamodb.Table(this, "Flights", {
       partitionKey: { name: "pk", type: dynamodb.AttributeType.STRING },
       sortKey: { name: "sk", type: dynamodb.AttributeType.STRING },
@@ -50,12 +46,12 @@ export class RestateHoliday extends Construct {
     const topic = new sns.Topic(this, "Topic");
     topic.addSubscription(new subscriptions.SmsSubscription("+11111111111"));
 
-    /**
-     * Create Lambda Functions for booking and cancellation of services.
-     */
+    // Lambda deployments of Restate service handlers: Trips provides the main entry point, and orchestrates the rest.
+    const tripLambda = lambdaHandler(this, "TripHandler", "src/trips.ts", { SNS_TOPIC: topic.topicArn });
+    topic.grantPublish(tripLambda);
+    new CfnOutput(this, "TripLambda", { value: tripLambda.currentVersion.functionArn, exportName: "tripsLambdaArn" });
 
-    // Flights
-    const flightLambda = this.createLambda(this, "flightLambdaHandler", "src/flights.ts", {
+    const flightLambda = lambdaHandler(this, "FlightHandler", "src/flights.ts", {
       FLIGHTS_TABLE_NAME: flightTable.tableName,
     });
     flightTable.grantReadWriteData(flightLambda);
@@ -64,15 +60,13 @@ export class RestateHoliday extends Construct {
       exportName: "flightsLambdaArn",
     });
 
-    // Car Rentals
-    const rentalLambda = this.createLambda(this, "rentalLambdaHandler", "src/cars.ts", {
+    const rentalLambda = lambdaHandler(this, "RentalHandler", "src/cars.ts", {
       CARS_TABLE_NAME: rentalTable.tableName,
     });
     rentalTable.grantReadWriteData(rentalLambda);
     new CfnOutput(this, "CarLambda", { value: rentalLambda.currentVersion.functionArn, exportName: "carsLambdaArn" });
 
-    // Payment
-    const paymentLambda = this.createLambda(this, "paymentLambdaHandler", "src/payments.ts", {
+    const paymentLambda = lambdaHandler(this, "PaymentHandler", "src/payments.ts", {
       PAYMENTS_TABLE_NAME: paymentTable.tableName,
     });
     paymentTable.grantReadWriteData(paymentLambda);
@@ -81,16 +75,10 @@ export class RestateHoliday extends Construct {
       exportName: "paymentsLambdaArn",
     });
 
-    // Trip
-    const tripLambda = this.createLambda(this, "tripLambdaHandler", "src/trips.ts", { SNS_TOPIC: topic.topicArn });
-    topic.grantPublish(tripLambda);
-    new CfnOutput(this, "TripLambda", { value: tripLambda.currentVersion.functionArn, exportName: "tripsLambdaArn" });
-
-    if (process.env.MANAGED_SERVICE_CLUSTER) {
-      // create a role for the managed service to assume
-      const managed_service_role = new iam.Role(this, "ManagedServiceRole", {
+    if (props?.managedServiceClusterId) {
+      const managed_service_role = new iam.Role(this, "RestateManagedServiceRole", {
         assumedBy: new iam.ArnPrincipal("arn:aws:iam::663487780041:role/restate-dev"),
-        externalIds: [process.env.MANAGED_SERVICE_CLUSTER],
+        externalIds: [props.managedServiceClusterId],
       });
 
       for (const lambda of [flightLambda, rentalLambda, paymentLambda, tripLambda]) {
@@ -103,20 +91,20 @@ export class RestateHoliday extends Construct {
       });
     }
   }
+}
 
-  createLambda(scope: Construct, id: string, handler: string, environment: { [key: string]: string }) {
-    return new NodejsFunction(scope, id, {
-      runtime: lambda.Runtime.NODEJS_18_X,
-      entry: handler,
-      architecture: Architecture.ARM_64,
-      awsSdkConnectionReuse: true,
-      bundling: {
-        externalModules: ["aws-sdk"], // Use the 'aws-sdk' available in the Lambda runtime
-      },
-      environment: {
-        NODE_OPTIONS: "--enable-source-maps",
-        ...environment,
-      },
-    });
-  }
+function lambdaHandler(scope: Construct, id: string, handler: string, environment: { [key: string]: string }) {
+  return new NodejsFunction(scope, id, {
+    runtime: lambda.Runtime.NODEJS_18_X,
+    entry: handler,
+    architecture: Architecture.ARM_64,
+    awsSdkConnectionReuse: true,
+    bundling: {
+      externalModules: ["aws-sdk"], // Use the 'aws-sdk' available in the Lambda runtime
+    },
+    environment: {
+      NODE_OPTIONS: "--enable-source-maps",
+      ...environment,
+    },
+  });
 }

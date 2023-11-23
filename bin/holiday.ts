@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import "source-map-support/register";
 import * as cdk from "aws-cdk-lib";
-import { RestateHolidayStack } from "../lib/holiday";
+import { HolidayServiceStack } from "../lib/holiday-service-stack";
 
 function addPrefix(name: string, prefix?: string) {
   if (!prefix) return name;
@@ -11,4 +11,6 @@ function addPrefix(name: string, prefix?: string) {
 const app = new cdk.App();
 
 const prefix = app.node.tryGetContext("prefix") ?? process.env["USER"];
-new RestateHolidayStack(app, addPrefix("RestateHolidayStack", prefix));
+new HolidayServiceStack(app, addPrefix("RestateHolidayStack", prefix), {
+  managedServiceClusterId: process.env.MANAGED_SERVICE_CLUSTER,
+});
