@@ -8,6 +8,7 @@ import * as sns from "aws-cdk-lib/aws-sns";
 import * as subscriptions from "aws-cdk-lib/aws-sns-subscriptions";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as iam from "aws-cdk-lib/aws-iam";
+import * as restate from "@restatedev/cdk-support";
 
 export interface HolidayServiceStackProps extends cdk.StackProps {
   /**
@@ -17,6 +18,8 @@ export interface HolidayServiceStackProps extends cdk.StackProps {
 }
 
 export class HolidayServiceStack extends cdk.Stack {
+  readonly restateServices: restate.LambdaServiceCollectionProps;
+
   constructor(scope: Construct, id: string, props?: HolidayServiceStackProps) {
     super(scope, id, props);
 
@@ -74,6 +77,15 @@ export class HolidayServiceStack extends cdk.Stack {
       value: paymentLambda.currentVersion.functionArn,
       exportName: "paymentsLambdaArn",
     });
+
+    this.restateServices = {
+      serviceHandlers: {
+        trips: tripLambda,
+        flights: flightLambda,
+        cars: rentalLambda,
+        payments: paymentLambda,
+      },
+    };
 
     if (props?.managedServiceClusterId) {
       const managed_service_role = new iam.Role(this, "RestateManagedServiceRole", {
