@@ -4,25 +4,30 @@ import { Construct } from "constructs";
 import * as restate from "@restatedev/cdk-support";
 
 export class SelfHostedRestateStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props: cdk.StackProps & restate.LambdaServiceCollectionProps) {
+  readonly restateInstance: restate.RestateInstance;
+  readonly registrationProviderToken: cdk.CfnOutput;
+
+  constructor(scope: Construct, id: string, props: cdk.StackProps & { prefix: string; }) {
     super(scope, id, props);
 
     const restateInstance = new restate.SingleNodeRestateInstance(this, "Restate", {
       ...props,
       logGroup: new logs.LogGroup(this, "RestateLogGroup", {
-        logGroupName: "restate",
-        removalPolicy: cdk.RemovalPolicy.RETAIN,
+        logGroupName: ["/restate", props.prefix, "restate"].filter(Boolean).join("/"), // "/restate/${PREFIX}/restate" or just "/restate/restate" on empty prefix
+        removalPolicy: cdk.RemovalPolicy.DESTROY, // Set to RETAIN if you'd prefer to keep the logs after stack deletion
         retention: logs.RetentionDays.ONE_MONTH,
       }),
     });
-
-    const services = new restate.RestateLambdaServiceCollection(this, "RestateServices", {
-      serviceHandlers: {},
-    });
-    services.register(restateInstance);
+    this.restateInstance = restateInstance;
 
     new cdk.CfnOutput(this, "RestateIngressEndpoint", {
       value: restateInstance.publicIngressEndpoint,
     });
+    new cdk.CfnOutput(this, "RestateHostInstanceId", {
+      value: restateInstance.instance.instanceId,
+      description: "Restate service host EC2 instance id",
+    });
+
+    this.registrationProviderToken = restateInstance.registrationProviderToken;
   }
 }

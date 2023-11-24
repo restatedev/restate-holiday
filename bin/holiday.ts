@@ -36,10 +36,12 @@ switch (deploymentMode) {
 }
 
 const prefix = app.node.tryGetContext("prefix") ?? process.env["USER"];
-const holidayStack = new HolidayServiceStack(app, addPrefix("RestateHolidayStack", prefix), {
-  managedServiceClusterId,
-});
 
-if (deploymentMode === DeploymentMode.SELF_HOSTED) {
-  new SelfHostedRestateStack(app, addPrefix("RestateStack", prefix), { ...holidayStack.restateServices });
-}
+const restateStack = deploymentMode === DeploymentMode.SELF_HOSTED ?
+  new SelfHostedRestateStack(app, addPrefix("RestateStack", prefix), { prefix }) : null;
+
+new HolidayServiceStack(app, addPrefix("HolidayTripsServiceStack", prefix), {
+  managedServiceClusterId,
+  restateInstance: restateStack?.restateInstance,
+  registrationProviderToken: restateStack?.registrationProviderToken.value,
+});
