@@ -20,9 +20,9 @@ export interface HolidayServiceStackProps extends cdk.StackProps {
   restateInstance?: restate.RestateInstance;
 
   /**
-   * Custom discovery provider from the Restate instance, if self-hosted.
+   * Service registration token obtained from the Restate construct {@link restate.SingleNodeRestateInstance#registrationProviderToken}.
    */
-  registrationProviderToken?: string;
+  registrationProviderToken: string;
 
   /**
    * Optional prefix for resources that need unique identifiers within an account.
@@ -110,6 +110,7 @@ export class HolidayServiceStack extends cdk.Stack {
           flights: flightLambda,
           cars: rentalLambda,
           payments: paymentLambda,
+          greeter,
         },
         registrationProviderToken: props.registrationProviderToken,
       });
@@ -126,6 +127,9 @@ export class HolidayServiceStack extends cdk.Stack {
 
 function lambdaHandler(scope: Construct, id: string, handler: string, environment: { [key: string]: string }) {
   return new NodejsFunction(scope, id, {
+    currentVersionOptions: {
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+    },
     runtime: lambda.Runtime.NODEJS_18_X,
     entry: handler,
     architecture: lambda.Architecture.ARM_64,
