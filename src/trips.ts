@@ -14,27 +14,6 @@ const reserve = async (ctx: restate.RpcContext, request?: { run_type?: string; t
 
   const compensations: (() => void)[] = [];
 
-  const revert = async (e: any) => {
-    const len = compensations.length;
-    // apply compensations in reverse order
-    for (let i = compensations.length - 1; i >= 0; i--) {
-      compensations[i]();
-    }
-    // clear compensations
-    compensations.splice(0, compensations.length);
-
-    // notify failure
-    const message = new PublishCommand({
-      TopicArn: process.env.SNS_TOPIC,
-      Message: "Your Travel Reservation Failed",
-    });
-    await ctx.sideEffect(async () => (process.env.SNS_TOPIC ? await sns.send(message) : {}));
-
-    throw new TerminalError(`Travel reservation failed with err '${e}'; successfully applied ${len} compensations`, {
-      cause: e,
-    });
-  };
-
   const tripID = request?.trip_id ?? (await ctx.sideEffect(async () => uuidv4()));
 
   const input = {
@@ -49,36 +28,55 @@ const reserve = async (ctx: restate.RpcContext, request?: { run_type?: string; t
     run_type: request?.run_type,
   };
 
-  compensations.push(() => ctx.send(flightsService).cancel(tripID, { booking_id: flight_booking_id }));
-  const { booking_id: flight_booking_id } = await ctx.rpc(flightsService).reserve(tripID, input).catch(revert);
+  try {
+    // call the flights Lambda to reserve, keeping track of how to cancel it
+    compensations.push(() => ctx.send(flightsService).cancel(tripID, { booking_id: flight_booking_id }));
+    const { booking_id: flight_booking_id } = await ctx.rpc(flightsService).reserve(tripID, input);
 
-  compensations.push(() => ctx.send(carRentalService).cancel(tripID, { booking_id: car_booking_id }));
-  const { booking_id: car_booking_id } = await ctx.rpc(carRentalService).reserve(tripID, input).catch(revert);
+    // call the cars Lambda to reserve, keeping track of how to cancel it
+    compensations.push(() => ctx.send(carRentalService).cancel(tripID, { booking_id: car_booking_id }));
+    const { booking_id: car_booking_id } = await ctx.rpc(carRentalService).reserve(tripID, input);
 
-  compensations.push(() => ctx.send(paymentsService).refund(tripID, { payment_id }));
-  const { payment_id } = await ctx
-    .rpc(paymentsService)
-    .process(tripID, {
-      car_booking_id,
-      flight_booking_id,
-      run_type: input.run_type,
-    })
-    .catch(revert);
+    // call the payments Lambda to process, keeping track of how to refund it
+    compensations.push(() => ctx.send(paymentsService).refund(tripID, { payment_id }));
+    const { payment_id } = await ctx
+      .rpc(paymentsService)
+      .process(tripID, {
+        car_booking_id,
+        flight_booking_id,
+        run_type: input.run_type,
+      });
 
-  await ctx.rpc(flightsService).confirm(tripID, { booking_id: flight_booking_id }).catch(revert);
-  await ctx.rpc(carRentalService).confirm(tripID, { booking_id: car_booking_id }).catch(revert);
+    // confirm the flight and car
+    await ctx.rpc(flightsService).confirm(tripID, { booking_id: flight_booking_id });
+    await ctx.rpc(carRentalService).confirm(tripID, { booking_id: car_booking_id });
 
-  // simulate a failing SNS call
-  if (request?.run_type === "failNotification") {
-    await Promise.reject(new TerminalError("Failed to send notification")).catch(revert);
+    // simulate a failing SNS call
+    if (request?.run_type === "failNotification") {
+      await Promise.reject(new TerminalError("Failed to send notification"));
+    }
+  } catch (e) {
+    // undo all the steps up to this point
+    compensations.reverse().forEach((undo) => undo())
+    while (compensations.length) compensations.pop()?.();
+    compensations.reduceRight((_, fn) => {fn(); return undefined}, void(0))
+
+    // notify failure
+    await ctx.sideEffect(() => sns.send(new PublishCommand({
+      TopicArn: process.env.SNS_TOPIC,
+      Message: "Your Travel Reservation Failed",
+    })));
+
+    throw new TerminalError(`Travel reservation failed with err '${e}'; successfully applied ${compensations.length} compensations`, {
+      cause: e,
+    });
   }
 
   // notify success
-  let message = new PublishCommand({
+  await ctx.sideEffect(async () => (process.env.SNS_TOPIC ? await sns.send(new PublishCommand({
     TopicArn: process.env.SNS_TOPIC,
     Message: "Your Travel Reservation is Successful",
-  });
-  await ctx.sideEffect(async () => (process.env.SNS_TOPIC ? await sns.send(message) : {}));
+  })) : {}));
 
   return;
 };
