@@ -1,7 +1,6 @@
 import * as restate from "@restatedev/restate-sdk";
 import { TerminalError } from "@restatedev/restate-sdk";
 import { DeleteItemCommand, DynamoDBClient, PutItemCommand, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
-import { v4 as uuidv4 } from "uuid";
 import * as process from "process";
 
 const dynamo = new DynamoDBClient({ endpoint: process.env.AWS_ENDPOINT });
@@ -17,7 +16,7 @@ export type CarReserveParams = {
 const reserve = async (ctx: restate.RpcContext, tripID: string, event: CarReserveParams) => {
   console.log("reserve car:", tripID, JSON.stringify(event, undefined, 2));
 
-  const carRentalReservationID = await ctx.sideEffect(async () => uuidv4());
+  const carRentalReservationID = ctx.rand.uuidv4();
   console.log("carRentalReservationID:", carRentalReservationID);
 
   // Pass the parameter to fail this step

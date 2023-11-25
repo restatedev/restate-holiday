@@ -1,7 +1,6 @@
 import * as restate from "@restatedev/restate-sdk";
 import { TerminalError } from "@restatedev/restate-sdk";
 import { DeleteItemCommand, DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
-import { v4 as uuidv4 } from "uuid";
 
 const dynamo = new DynamoDBClient({ endpoint: global.process.env.AWS_ENDPOINT });
 
@@ -10,7 +9,7 @@ type ProcessParams = { flight_booking_id: string; car_booking_id: string; run_ty
 const process = async (ctx: restate.RpcContext, tripID: string, event: ProcessParams) => {
   console.log("process payment:", tripID, JSON.stringify(event, undefined, 2));
 
-  const paymentID = await ctx.sideEffect(async () => uuidv4());
+  const paymentID = ctx.rand.uuidv4();
 
   // Pass the parameter to fail this step
   if (event.run_type === "failPayment") {

@@ -1,7 +1,6 @@
 import * as restate from "@restatedev/restate-sdk";
 import { TerminalError } from "@restatedev/restate-sdk";
 import { DeleteItemCommand, DynamoDBClient, PutItemCommand, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
-import { v4 as uuidv4 } from "uuid";
 import process from "process";
 
 const dynamo = new DynamoDBClient({ endpoint: process.env.AWS_ENDPOINT });
@@ -14,7 +13,7 @@ const reserve = async (
 ): Promise<{ booking_id: string }> => {
   console.log("reserve flight:", tripID, JSON.stringify(event, undefined, 2));
 
-  const flightReservationID = await ctx.sideEffect(async () => uuidv4());
+  const flightReservationID = ctx.rand.uuidv4();
   console.log("flightReservationID:", flightReservationID);
 
   // Pass the parameter to fail this step

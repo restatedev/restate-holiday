@@ -4,7 +4,6 @@ import { carRentalService } from "./cars";
 import { flightsService } from "./flights";
 import { paymentsService } from "./payments";
 import { PublishCommand, SNSClient } from "@aws-sdk/client-sns";
-import { v4 as uuidv4 } from "uuid";
 import * as process from "process";
 
 const sns = new SNSClient({ endpoint: process.env.AWS_ENDPOINT });
@@ -14,7 +13,7 @@ const reserve = async (ctx: restate.RpcContext, request?: { run_type?: string; t
 
   const compensations: (() => void)[] = [];
 
-  const tripID = request?.trip_id ?? (await ctx.sideEffect(async () => uuidv4()));
+  const tripID = request?.trip_id ?? ctx.rand.uuidv4();
 
   const input = {
     trip_id: tripID,
@@ -58,8 +57,6 @@ const reserve = async (ctx: restate.RpcContext, request?: { run_type?: string; t
   } catch (e) {
     // undo all the steps up to this point
     compensations.reverse().forEach((undo) => undo())
-    while (compensations.length) compensations.pop()?.();
-    compensations.reduceRight((_, fn) => {fn(); return undefined}, void(0))
 
     // notify failure
     await ctx.sideEffect(() => sns.send(new PublishCommand({
