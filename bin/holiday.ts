@@ -4,17 +4,17 @@ import * as cdk from "aws-cdk-lib";
 import { HolidayServiceStack } from "../lib/holiday-service-stack";
 import { SelfHostedRestateStack } from "../lib/self-hosted-restate-stack";
 
+enum DeploymentMode {
+  SELF_HOSTED = "self-hosted",
+  MANAGED_SERVICE = "managed",
+}
+
 function addPrefix(name: string, prefix?: string) {
   if (!prefix) return name;
   return `${prefix}-${name}`;
 }
 
 const app = new cdk.App();
-
-enum DeploymentMode {
-  SELF_HOSTED = "self-hosted",
-  MANAGED_SERVICE = "managed",
-}
 
 const managedServiceClusterId = app.node.tryGetContext("clusterId") ?? process.env["MANAGED_SERVICE_CLUSTER_ID"];
 const deploymentMode = app.node.tryGetContext("deploymentMode") ?? DeploymentMode.SELF_HOSTED;
@@ -35,7 +35,7 @@ switch (deploymentMode) {
     throw new Error(`Unknown deployment mode "${deploymentMode}". Expected one of: ${Object.values(DeploymentMode)}`);
 }
 
-const prefix = app.node.tryGetContext("prefix") ?? process.env["USER"];
+const prefix = app.node.tryGetContext("prefix");
 
 const restateStack = deploymentMode === DeploymentMode.SELF_HOSTED ?
   new SelfHostedRestateStack(app, addPrefix("RestateStack", prefix), { prefix }) : null;
