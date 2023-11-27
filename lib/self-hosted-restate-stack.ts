@@ -12,6 +12,7 @@ export class SelfHostedRestateStack extends cdk.Stack {
 
     const restateInstance = new restate.SingleNodeRestateInstance(this, "Restate", {
       ...props,
+      restateTag: "0.5.0",
       logGroup: new logs.LogGroup(this, "RestateLogGroup", {
         logGroupName: ["/restate", props.prefix, "restate"].filter(Boolean).join("/"), // "/restate/${PREFIX}/restate" or just "/restate/restate" on empty prefix
         removalPolicy: cdk.RemovalPolicy.DESTROY, // Set to RETAIN if you'd prefer to keep the logs after stack deletion

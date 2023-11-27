@@ -125,3 +125,9 @@ You may also provide a trip ID of your choice:
 ```shell
 curl $INGRESS/trips/reserve --json '{"request": {"trip_id": "foo"}}'
 ```
+
+Finally, you can make an idempotent invocation by setting the `idempotency-key` header:
+
+```shell
+curl $INGRESS/trips/reserve -H 'idempotency-key: <unique-key>' --json '{}'
+```

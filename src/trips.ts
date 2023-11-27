@@ -56,7 +56,7 @@ const reserve = async (ctx: restate.RpcContext, request?: { run_type?: string; t
   } catch (e) {
     // undo all the steps up to this point
     for (const undo of undos.reverse()) {
-      await undo()
+      await undo();
     }
 
     // notify failure
@@ -76,6 +76,11 @@ const reserve = async (ctx: restate.RpcContext, request?: { run_type?: string; t
     TopicArn: process.env.SNS_TOPIC,
     Message: "Your Travel Reservation is Successful",
   })) : {}));
+
+  return {
+    status: "success",
+    trip_id: tripID,
+  };
 };
 
 export const tripsRouter = restate.router({ reserve });
