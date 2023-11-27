@@ -110,7 +110,6 @@ export class HolidayServiceStack extends cdk.Stack {
           flights: flightLambda,
           cars: rentalLambda,
           payments: paymentLambda,
-          greeter,
         },
         registrationProviderToken: props.registrationProviderToken,
       });
