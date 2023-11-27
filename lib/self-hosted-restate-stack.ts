@@ -1,7 +1,7 @@
 import * as cdk from "aws-cdk-lib";
 import * as logs from "aws-cdk-lib/aws-logs";
 import { Construct } from "constructs";
-import * as restate from "@restatedev/cdk-support";
+import * as restate from "@restatedev/restate-cdk";
 
 export class SelfHostedRestateStack extends cdk.Stack {
   readonly restateInstance: restate.RestateInstance;
