@@ -11,11 +11,9 @@ const sns = new SNSClient({ endpoint: process.env.AWS_ENDPOINT });
 const reserve = async (ctx: restate.RpcContext, request?: { run_type?: string; trip_id?: string }) => {
   console.log("reserve trip:", JSON.stringify(request, undefined, 2));
 
-  const compensations: (() => void)[] = [];
-
   const tripID = request?.trip_id ?? ctx.rand.uuidv4();
 
-  const input = {
+  let input = {
     trip_id: tripID,
     depart_city: "Detroit",
     depart_time: "2021-07-07T06:00:00.000Z",
@@ -27,28 +25,29 @@ const reserve = async (ctx: restate.RpcContext, request?: { run_type?: string; t
     run_type: request?.run_type,
   };
 
+  // set up RPC clients
+  const flights = ctx.rpc(flightsService);
+  const carRentals = ctx.rpc(carRentalService);
+  const payments = ctx.rpc(paymentsService);
+
+  // create an undo stack
+  const undos = [];
   try {
-    // call the flights Lambda to reserve, keeping track of how to cancel it
-    compensations.push(() => ctx.send(flightsService).cancel(tripID, { booking_id: flight_booking_id }));
-    const { booking_id: flight_booking_id } = await ctx.rpc(flightsService).reserve(tripID, input);
+    // call the flights Lambda to reserve, keeping track of how to cancel
+    const flight_booking = await flights.reserve(tripID, input);
+    undos.push(() => flights.cancel(tripID, flight_booking));
 
-    // call the cars Lambda to reserve, keeping track of how to cancel it
-    compensations.push(() => ctx.send(carRentalService).cancel(tripID, { booking_id: car_booking_id }));
-    const { booking_id: car_booking_id } = await ctx.rpc(carRentalService).reserve(tripID, input);
+    // RPC the rental service to reserve, keeping track of how to cancel
+    const car_booking = await carRentals.reserve(tripID, input);
+    undos.push(() => carRentals.cancel(tripID, car_booking));
 
-    // call the payments Lambda to process, keeping track of how to refund it
-    compensations.push(() => ctx.send(paymentsService).refund(tripID, { payment_id }));
-    const { payment_id } = await ctx
-      .rpc(paymentsService)
-      .process(tripID, {
-        car_booking_id,
-        flight_booking_id,
-        run_type: input.run_type,
-      });
+    // RPC the payments service to process, keeping track of how to refund
+    const payment = await payments.process(tripID, { run_type: input.run_type });
+    undos.push(() => payments.refund(tripID, payment));
 
     // confirm the flight and car
-    await ctx.rpc(flightsService).confirm(tripID, { booking_id: flight_booking_id });
-    await ctx.rpc(carRentalService).confirm(tripID, { booking_id: car_booking_id });
+    await flights.confirm(tripID, flight_booking);
+    await flights.confirm(tripID, car_booking);
 
     // simulate a failing SNS call
     if (request?.run_type === "failNotification") {
@@ -56,7 +55,9 @@ const reserve = async (ctx: restate.RpcContext, request?: { run_type?: string; t
     }
   } catch (e) {
     // undo all the steps up to this point
-    compensations.reverse().forEach((undo) => undo())
+    for (const undo of undos.reverse()) {
+      await undo()
+    }
 
     // notify failure
     await ctx.sideEffect(() => sns.send(new PublishCommand({
@@ -64,7 +65,8 @@ const reserve = async (ctx: restate.RpcContext, request?: { run_type?: string; t
       Message: "Your Travel Reservation Failed",
     })));
 
-    throw new TerminalError(`Travel reservation failed with err '${e}'; successfully applied ${compensations.length} compensations`, {
+    // exit with an error
+    throw new TerminalError(`Travel reservation failed with err '${e}'; successfully applied ${undos.length} compensations`, {
       cause: e,
     });
   }
@@ -74,8 +76,6 @@ const reserve = async (ctx: restate.RpcContext, request?: { run_type?: string; t
     TopicArn: process.env.SNS_TOPIC,
     Message: "Your Travel Reservation is Successful",
   })) : {}));
-
-  return;
 };
 
 export const tripsRouter = restate.router({ reserve });

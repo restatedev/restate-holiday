@@ -4,10 +4,10 @@ import { DeleteItemCommand, DynamoDBClient, PutItemCommand } from "@aws-sdk/clie
 
 const dynamo = new DynamoDBClient({ endpoint: global.process.env.AWS_ENDPOINT });
 
-type ProcessParams = { flight_booking_id: string; car_booking_id: string; run_type?: string };
+type ProcessParams = { run_type?: string };
 
 const process = async (ctx: restate.RpcContext, tripID: string, event: ProcessParams) => {
-  console.log("process payment:", tripID, JSON.stringify(event, undefined, 2));
+  console.log("process payment:", tripID);
 
   const paymentID = ctx.rand.uuidv4();
 
