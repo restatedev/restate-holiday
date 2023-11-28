@@ -1,5 +1,6 @@
 import * as cdk from "aws-cdk-lib";
 import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
+import { BillingMode } from "aws-cdk-lib/aws-dynamodb";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as restate from "@restatedev/restate-cdk";
@@ -39,6 +40,7 @@ export class HolidayServiceStack extends cdk.Stack {
       partitionKey: { name: "pk", type: dynamodb.AttributeType.STRING },
       sortKey: { name: "sk", type: dynamodb.AttributeType.STRING },
       removalPolicy: cdk.RemovalPolicy.DESTROY,
+      billingMode: BillingMode.PAY_PER_REQUEST,
     });
     // new cdk.CfnOutput(this, "FlightTable", { value: flightTable.tableName, exportName: "flightsTableName" });
 
@@ -46,6 +48,7 @@ export class HolidayServiceStack extends cdk.Stack {
       partitionKey: { name: "pk", type: dynamodb.AttributeType.STRING },
       sortKey: { name: "sk", type: dynamodb.AttributeType.STRING },
       removalPolicy: cdk.RemovalPolicy.DESTROY,
+      billingMode: BillingMode.PAY_PER_REQUEST,
     });
     // new cdk.CfnOutput(this, "CarTable", { value: rentalTable.tableName, exportName: "carsTableName" });
 
@@ -53,6 +56,7 @@ export class HolidayServiceStack extends cdk.Stack {
       partitionKey: { name: "pk", type: dynamodb.AttributeType.STRING },
       sortKey: { name: "sk", type: dynamodb.AttributeType.STRING },
       removalPolicy: cdk.RemovalPolicy.DESTROY,
+      billingMode: BillingMode.PAY_PER_REQUEST,
     });
     // new cdk.CfnOutput(this, "PaymentTable", { value: paymentTable.tableName, exportName: "paymentsTableName" });
 
