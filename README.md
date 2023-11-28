@@ -49,7 +49,19 @@ You can also deploy only the self-hosted Restate stack as follows:
 npx cdk deploy RestateStack
 ```
 
-To delete all created resources, run:
+You can export the ingress endpoint of the Restate stack using:
+
+```shell
+export INGRESS=$(aws cloudformation describe-stacks \
+    --stack-name RestateStack \
+    --query "Stacks[0].Outputs[?OutputKey=='RestateIngressEndpoint'].OutputValue" \
+    --output text)
+```
+
+Note that if you set a stack prefix, you will need to update the name above accordingly. You can now jump to the
+[Invoking](#Invoking) section which shows you how to send some requests to the service.
+
+When you are done testing, you can easily delete all created resources with the command:
 
 ```shell
 npx cdk destroy --all
