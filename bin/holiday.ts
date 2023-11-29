@@ -48,7 +48,10 @@ switch (deploymentMode) {
 const prefix = app.node.tryGetContext("prefix");
 
 const restateStack = deploymentMode === DeploymentMode.SELF_HOSTED ?
-  new SelfHostedRestateStack(app, addPrefix("RestateStack", prefix), { prefix }) : null;
+  new SelfHostedRestateStack(app, addPrefix("RestateStack", prefix), {
+    prefix,
+    ingressCertificateArn: app.node.tryGetContext("ingressCertificateArn") ?? process.env["INGRESS_CERTIFICATE_ARN"],
+  }) : null;
 
 new HolidayServiceStack(app, addPrefix("HolidayTripsServiceStack", prefix), {
   managedServiceClusterId,
