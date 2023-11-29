@@ -61,7 +61,8 @@ export INGRESS=$(aws cloudformation describe-stacks \
 Note that if you set a stack prefix, you will need to update the name above accordingly. You can now jump to the
 [Invoking](#Invoking) section which shows you how to send some requests to the service.
 
-When you are done testing, you can easily delete all created resources with the command:
+When you are done testing, you can easily delete all created resources with the command (if you specified a prefix
+during deployment, you will need to use the same value here too):
 
 ```shell
 npx cdk destroy --all
@@ -142,4 +143,27 @@ Finally, you can make an idempotent invocation by setting the `idempotency-key` 
 
 ```shell
 curl $INGRESS/trips/reserve -H 'idempotency-key: <unique-key>' --json '{}'
+```
+
+## Observability
+
+### Logs
+
+The Restate container deployed by the CDK construct will publish its logs to CloudWatch logs. You can view them in the
+console or follow them from a terminal using the AWS CLI:
+
+```shell
+aws logs tail /restate/restate --follow
+```
+
+If you specified a deployment prefix, the log group will be called `/restate/<prefix>/restate`.
+
+### Traces
+
+The self-hosted Restate container is configured to send traces to AWS X-Ray, by way of the AWS Distro for OpenTelemetry.
+You should see traces in the X-Ray console including for health checks made by the load balancer. To filter just the
+traces made to the demo Trips service, use a query like:
+
+```
+service(id(name: "trips"))
 ```
