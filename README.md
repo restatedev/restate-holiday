@@ -19,7 +19,7 @@ The original example has 9 Lambdas:
 - Reserve/Confirm/Cancel car reservation
 - Process/Refund payment
 - Kick off the workflow (called by API gateway)
- 
+
 And some other components:
 
 - API gateway
@@ -35,7 +35,21 @@ Instead, we have 4 Lambda deployments, each corresponding to a single service fr
 
 ## Deploying with self-hosted Restate instance
 
-By default, the CDK app will deploy two stacks: a self-hosted Restate instance, and the Holiday service stack. 
+In order to accept incoming requests over HTTPS we need a certificate to use with the Restate ingress endpoint. If you
+have a certificate you would like to use, you can specify it in the `INGRESS_CERTIFICATE_ARN` environment variable.
+Alternatively, you can create and import a new self-signed certificate:
+
+```shell
+bin/create-certificate.sh
+export INGRESS_CERTIFICATE_ARN=$(aws acm list-certificates \
+  --query "CertificateSummaryList[?DomainName=='restate.example.com'].CertificateArn" --output text)
+```
+
+You can also set the certificate ARN via the `ingressCertificateArn` CDK context attribute, either on the command line
+or by editing the `cdk.json` file. This may be helpful if you want to deploy changes to the stack with CDK in the
+future, without having to set the environment variable again.
+
+By default, the Holiday CDK app will deploy two stacks: a self-hosted Restate instance, and the Holiday service stack.
 
 ```shell
 npx cdk deploy --all
@@ -53,7 +67,8 @@ You can also deploy only the self-hosted Restate stack as follows:
 npx cdk deploy RestateStack
 ```
 
-You can export the ingress endpoint of the Restate stack using:
+You can save the ingress endpoint URL for later testing using the command below. If you specified a certificate earlier,
+the endpoint URL should use HTTPS.
 
 ```shell
 export INGRESS=$(aws cloudformation describe-stacks \
@@ -62,7 +77,7 @@ export INGRESS=$(aws cloudformation describe-stacks \
     --output text)
 ```
 
-Note that if you set a stack prefix, you will need to update the name above accordingly. You can now jump to the
+Note that if you used a stack prefix, you will need to update the stack name above accordingly. You can now jump to the
 [Invoking](#Invoking) section which shows you how to send some requests to the service.
 
 When you are done testing, you can easily delete all created resources with the command (if you specified a prefix
@@ -75,21 +90,24 @@ npx cdk destroy --all
 ## Deploying against Restate managed service
 
 `MANAGED_SERVICE_CLUSTER=<your-cluster> cdk deploy` will set up everything you need in your AWS account. To discover the Lambdas to your managed Restate cluster:
-```shell 
+
+```shell
 # get stack outputs into your shell
 eval $(aws cloudformation describe-stacks --stack RestateHolidayStack  --query "Stacks[].Outputs[]" | jq -r '.[] | "export " + .ExportName + "=" + .OutputValue')
 for arn in ${tripsLambdaArn} ${carsLambdaArn} ${paymentsLambdaArn} ${flightsLambdaArn}; do
   curl -H "Authorization: Bearer <your-cluster-token>" https://<your-cluster>.dev.restate.cloud:9070/endpoints --json "{\"arn\": \"$arn\", \"assume_role_arn\": \"${assumeRoleArn}\"}"
 done
 ```
+
 This discovered a specific version, so you'll need to run this again if you update the Lambda functions.
 
 See [the Managed Service docs](https://docs.restate.dev/restate/managed_service#giving-permission-for-your-cluster-to-invoke-your-lambdas) for more information
 
 ## Deploying against local Restate
 
-Restate services don't care if they're running in a Lambda or not. 
+Restate services don't care if they're running in a Lambda or not.
 You can start a local instance of the services in one binary, which will use your local AWS creds
+
 ```shell
 # get stack outputs into your shell
 eval $(aws cloudformation describe-stacks --stack RestateHolidayStack  --query "Stacks[].Outputs[]" | jq -r '.[] | "export " + .ExportName + "=" + .OutputValue')
@@ -97,12 +115,14 @@ FLIGHTS_TABLE_NAME=${flightsTableName} CARS_TABLE_NAME=$carsTableName PAYMENTS_T
 ```
 
 And you can start a local Restate instance and discover the service:
+
 ```
 docker run --name restate_dev --rm -d --network=host ghcr.io/restatedev/restate-dist:0.4.0
 curl localhost:9070/endpoints --json '{"uri": "http://localhost:9080"}'
 ```
 
 You can even expose your local service over [ngrok](https://ngrok.com/) and route all new invocations from a remote cluster to your machine:
+
 ```shell
 ngrok tcp 9080
 # get the tcp endpoint like tcp://6.tcp.eu.ngrok.io:14640 and change tcp -> http
@@ -111,6 +131,7 @@ curl <remote-restate-cluster>/endpoints --json '{"uri": "http://6.tcp.eu.ngrok.i
 
 You can also deploy against localstack AWS services using [`cdklocal`](https://github.com/localstack/aws-cdk-local)
 and [`awslocal`](https://github.com/localstack/awscli-local):
+
 ```shell
 cdklocal deploy
 # get stack outputs into your shell
@@ -120,12 +141,16 @@ AWS_ENDPOINT=http://localhost:4566 FLIGHTS_TABLE_NAME=restate-holiday-Flights CA
 
 ## Invoking
 
+Note that we use the `-k` flag to skip certificate validation and make requests work against an ingress endpoint using a
+self-signed certificate. If you are testing against a Managed Restate service or with a valid certificate, you can omit
+this flag.
+
 ```shell
-curl $INGRESS/trips/reserve --json '{}'
+curl -k $INGRESS/trips/reserve --json '{}'
 ```
 
 You can cause a specific type of failure by making a request with one of the following failure types:
- 
+
 - `failFlightsReservation`
 - `failFlightsConfirmation`
 - `failCarRentalReservation`
@@ -134,19 +159,19 @@ You can cause a specific type of failure by making a request with one of the fol
 - `failNotification`
 
 ```shell
-curl $INGRESS/trips/reserve --json '{"request": {"run_type": "failPayment"}}'
+curl -k $INGRESS/trips/reserve --json '{"request": {"run_type": "failPayment"}}'
 ```
 
 You may also provide a trip ID of your choice:
 
 ```shell
-curl $INGRESS/trips/reserve --json '{"request": {"trip_id": "foo"}}'
+curl -k $INGRESS/trips/reserve --json '{"request": {"trip_id": "foo"}}'
 ```
 
 Finally, you can make an idempotent invocation by setting the `idempotency-key` header:
 
 ```shell
-curl $INGRESS/trips/reserve -H 'idempotency-key: <unique-key>' --json '{}'
+curl -k $INGRESS/trips/reserve -H 'idempotency-key: <unique-key>' --json '{}'
 ```
 
 ## Observability
