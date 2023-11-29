@@ -1,3 +1,7 @@
+[![Documentation](https://img.shields.io/badge/doc-reference-blue)](https://docs.restate.dev)
+[![Discord](https://img.shields.io/badge/join-discord-purple)](https://discord.gg/skW3AZ6uGd)
+[![Twitter](https://img.shields.io/twitter/follow/restatedev.svg?style=social&label=Follow)](https://twitter.com/intent/follow?screen_name=restatedev)
+
 # Restate Holiday
 
 This repository demonstrates the [Saga pattern](https://docs.aws.amazon.com/prescriptive-guidance/latest/patterns/implement-the-serverless-saga-pattern-by-using-aws-step-functions.html)
