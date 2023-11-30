@@ -13,6 +13,7 @@ import "source-map-support/register";
 import * as cdk from "aws-cdk-lib";
 import { HolidayServiceStack } from "../lib/holiday-service-stack";
 import { SelfHostedRestateStack } from "../lib/self-hosted-restate-stack";
+import { ManagedRestateStack } from "../lib/managed-restate-stack";
 
 enum DeploymentMode {
   SELF_HOSTED = "self-hosted",
@@ -25,36 +26,49 @@ function addPrefix(name: string, prefix?: string) {
 }
 
 const app = new cdk.App();
+const prefix = app.node.tryGetContext("prefix");
 
-const managedServiceClusterId = app.node.tryGetContext("clusterId") ?? process.env["MANAGED_SERVICE_CLUSTER_ID"];
 const deploymentMode = app.node.tryGetContext("deploymentMode") ?? DeploymentMode.SELF_HOSTED;
-
+let restateStack: ManagedRestateStack | SelfHostedRestateStack;
 switch (deploymentMode) {
   case DeploymentMode.MANAGED_SERVICE:
-    if (!managedServiceClusterId) {
-      throw new Error("Expected a cluster id to be provided for managed service deployment mode.");
-    }
-    console.log(`Deploying in managed service mode, cluster id: ${managedServiceClusterId}`);
+    console.log("Deploying in managed service mode.");
+
+    restateStack = new ManagedRestateStack(app, addPrefix("RestateStack", prefix), {
+      prefix,
+      clusterId: requireContextAttribute(app, "clusterId"),
+      authTokenSecretArn: requireContextAttribute(app, "authTokenSecretArn"),
+    });
     break;
 
   case DeploymentMode.SELF_HOSTED:
     console.log("Deploying in self-hosted mode.");
+
+    const ingressCertificateArn =
+      app.node.tryGetContext("ingressCertificateArn") ?? process.env["INGRESS_CERTIFICATE_ARN"];
+    if (!ingressCertificateArn) {
+      console.warn("No certificate specified, will use plain HTTP for ingress endpoint!");
+    }
+
+    restateStack = new SelfHostedRestateStack(app, addPrefix("RestateStack", prefix), {
+      prefix,
+      ingressCertificateArn,
+    });
     break;
 
   default:
     throw new Error(`Unknown deployment mode "${deploymentMode}". Expected one of: ${Object.values(DeploymentMode)}`);
 }
 
-const prefix = app.node.tryGetContext("prefix");
-
-const restateStack = deploymentMode === DeploymentMode.SELF_HOSTED ?
-  new SelfHostedRestateStack(app, addPrefix("RestateStack", prefix), {
-    prefix,
-    ingressCertificateArn: app.node.tryGetContext("ingressCertificateArn") ?? process.env["INGRESS_CERTIFICATE_ARN"],
-  }) : null;
-
 new HolidayServiceStack(app, addPrefix("HolidayTripsServiceStack", prefix), {
-  managedServiceClusterId,
-  restateInstance: restateStack?.restateInstance,
+  restateInstance: restateStack.restateInstance,
   registrationProviderToken: restateStack?.registrationProviderToken.value,
 });
+
+function requireContextAttribute(app: cdk.App, name: string) {
+  const value = app.node.tryGetContext(name);
+  if (!value) {
+    throw new Error(`Required CDK application context parameter missing: "${name}"`);
+  }
+  return value;
+}
