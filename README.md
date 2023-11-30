@@ -4,9 +4,9 @@
 
 # Restate Holiday
 
-This repository demonstrates the [Saga pattern](https://docs.aws.amazon.com/prescriptive-guidance/latest/patterns/implement-the-serverless-saga-pattern-by-using-aws-step-functions.html)
-in Restate. The example is based on AWS's [Step Functions sample implementation](https://github.com/aws-samples/step-functions-workflows-collection/tree/main/saga-pattern-tf)
-of the pattern and associated Holiday booking service.
+This repository demonstrates a complex workflow on Restate with AWS Lambda.
+The example is based on [AWS's Step Functions sample implementation](https://github.com/aws-samples/step-functions-workflows-collection/tree/main/saga-pattern-cdk)
+of a Holiday booking service using the Sagas pattern.
 
 The goal of this example is to show how you can easily move a fairly complex AWS Step Functions workflow into code
 using Restate. Instead of designing a graph of operations including failure compensations, you can just execute steps
