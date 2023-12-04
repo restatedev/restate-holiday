@@ -11,16 +11,12 @@
 
 import * as cdk from "aws-cdk-lib";
 import * as logs from "aws-cdk-lib/aws-logs";
-import * as acm from "aws-cdk-lib/aws-certificatemanager";
-import { Construct } from "constructs";
 import * as restate from "@restatedev/restate-cdk";
+import { Construct } from "constructs";
 
 export interface SelfHostedRestateProps extends cdk.StackProps {
   /** Prefix for resources created by this construct that require unique names. */
   prefix?: string;
-
-  /** Optional certificate to use on ingress listener. If not set, a plain HTTP listener will be created! */
-  ingressCertificateArn?: string;
 }
 
 export class SelfHostedRestateStack extends cdk.Stack {
@@ -39,14 +35,14 @@ export class SelfHostedRestateStack extends cdk.Stack {
         removalPolicy: cdk.RemovalPolicy.DESTROY, // Set to RETAIN if you'd prefer to keep the logs after stack deletion
         retention: logs.RetentionDays.ONE_MONTH,
       }),
-      certificate: props.ingressCertificateArn
-        ? acm.Certificate.fromCertificateArn(this, "Certificate", props.ingressCertificateArn)
-        : undefined,
     });
     this.restateInstance = restateInstance;
 
     new cdk.CfnOutput(this, "RestateIngressEndpoint", {
-      value: restateInstance.publicIngressEndpoint,
+      value: restateInstance.ingressEndpoint,
+    });
+    new cdk.CfnOutput(this, "RestateMetaEndpoint", {
+      value: restateInstance.metaEndpoint,
     });
     new cdk.CfnOutput(this, "RestateHostInstanceId", {
       value: restateInstance.instance.instanceId,

@@ -10,10 +10,10 @@
  */
 
 import * as cdk from "aws-cdk-lib";
-import { Construct } from "constructs";
 import * as restate from "@restatedev/restate-cdk";
+import { Construct } from "constructs";
 
-export class ManagedRestateStack extends cdk.Stack {
+export class RestateCloudStack extends cdk.Stack {
   readonly restateInstance: restate.RestateInstance;
   readonly registrationProviderToken: cdk.CfnOutput;
 

@@ -44,21 +44,6 @@ This example assumes you have the following installed:
 
 ## Deploying the Holiday Service and a self-hosted Restate instance
 
-In order to accept incoming requests over HTTPS we need a certificate to use with the Restate ingress endpoint. If you
-have a certificate you would like to use, you can specify it in the `INGRESS_CERTIFICATE_ARN` environment variable.
-Alternatively, you can create and import a new self-signed certificate:
-
-```shell
-bin/create-certificate.sh
-export INGRESS_CERTIFICATE_ARN=$(aws acm list-certificates \
-  --query "CertificateSummaryList[?DomainName=='restate.example.com'].CertificateArn" \
-  --output text)
-```
-
-You can also set the certificate ARN via the `ingressCertificateArn` CDK context attribute, either on the command line
-or by editing the `cdk.json` file. This may be helpful if you want to deploy changes to the stack with CDK in the
-future, without having to set the environment variable again.
-
 By default, the Holiday CDK app will deploy two stacks: a self-hosted Restate instance, and the Holiday service stack.
 
 ```shell
@@ -94,10 +79,9 @@ during deployment, you will need to use the same value here too):
 npx cdk destroy --all
 ```
 
-## Deploying on Restate managed service
+## Deploying on Restate Cloud
 
-You should have two pieces of information about your managed cluster: its identifier and an authentication token for the
-Restate API endpoints.
+You should have two pieces of information about your Restate Cloud: an identifier and an API authentication token.
 
 Create a secret in Secrets Manager to hold the authentication token. The secret name is up to you -- we suggest
 using `/restate/` and an appropriate prefix to avoid confusion:
@@ -113,7 +97,7 @@ Once you have the ARN for the secret, deploying the Holiday demo app is as easy 
 
 ```shell
 npx cdk deploy --all \
-    --context deploymentMode=managed \
+    --context deploymentMode=cloud \
     --context clusterId=${CLUSTER_ID} \
     --context authTokenSecretArn=${AUTH_TOKEN_ARN}
 ```
@@ -122,7 +106,7 @@ Just like with the self-hosted stack you can also specify a unique prefix if you
 stacks to the same AWS account with `--context prefix=${USER}`. You can also save these context attributes in the
 `cdk.json` file to avoid repetition for subsequent CDK operations.
 
-For managed clusters, the Restate ingress URL will be known upfront. You can also grab it from the deployment outputs:
+You can obtain the Restate ingress endpoint URL from the stack output:
 
 ```shell
 export INGRESS=$(aws cloudformation describe-stacks \
@@ -133,14 +117,13 @@ export INGRESS=$(aws cloudformation describe-stacks \
 You are now ready to jump to [Invoking](#Invoking) and send some requests to the service.
 
 See the [Managed Service documentation](https://docs.restate.dev/restate/managed_service#giving-permission-for-your-cluster-to-invoke-your-lambdas)
-for more information about the managed Restate offering.
+for more information about Restate Cloud.
 
-When you are done testing, you can easily delete all created resources with the command (if you specified a prefix
-during deployment, you will need to use the same value here too):
+When you are done testing, you can easily delete all created resources with the command (if you specified a prefix or a
+deployment mode during deployment, you will need to use the same values here too):
 
 ```shell
 npx cdk destroy --all \
-    --context deploymentMode=managed \
     --context clusterId=${CLUSTER_ID} \
     --context authTokenSecretArn=${AUTH_TOKEN_ARN}
 ```
@@ -184,8 +167,7 @@ AWS_ENDPOINT=http://localhost:4566 FLIGHTS_TABLE_NAME=restate-holiday-Flights CA
 ## Invoking
 
 Note that we use the `-k` flag to skip certificate validation and make requests work against an ingress endpoint using a
-self-signed certificate. If you are testing against a Managed Restate service or with a valid certificate, you can omit
-this flag.
+self-signed certificate. If you are calling Restate Cloud, or have a valid certificate deployed, you can omit this flag.
 
 ```shell
 curl -k $INGRESS/trips/reserve --json '{}'
