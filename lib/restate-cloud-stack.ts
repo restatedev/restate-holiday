@@ -20,7 +20,7 @@ export class RestateCloudStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: cdk.StackProps & restate.ManagedRestateProps) {
     super(scope, id, props);
 
-    const restateInstance = new restate.ManagedRestate(this, "Restate", {
+    const restateInstance = new restate.RestateCloudEndpoint(this, "Restate", {
       ...props,
     });
     this.restateInstance = restateInstance;
