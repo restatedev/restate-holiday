@@ -33,21 +33,16 @@ Instead, we have 4 Lambda deployments, each corresponding to a single service fr
 - The [Car service](./src/cars.ts), with methods for reserve/confirm/cancel
 - The [Payment service](./src/payments.ts), with methods for process/refund
 
-## Deploying with self-hosted Restate instance
+## Prerequisites
 
-In order to accept incoming requests over HTTPS we need a certificate to use with the Restate ingress endpoint. If you
-have a certificate you would like to use, you can specify it in the `INGRESS_CERTIFICATE_ARN` environment variable.
-Alternatively, you can create and import a new self-signed certificate:
+This example assumes you have the following installed:
 
-```shell
-bin/create-certificate.sh
-export INGRESS_CERTIFICATE_ARN=$(aws acm list-certificates \
-  --query "CertificateSummaryList[?DomainName=='restate.example.com'].CertificateArn" --output text)
-```
+- [A current version of Node.js and npm](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm)
+- [An AWS account](https://aws.amazon.com/) and sufficient permissions to deploy the required resources
+- [AWS CLI](https://aws.amazon.com/cli/)
+- [curl](https://curl.se)
 
-You can also set the certificate ARN via the `ingressCertificateArn` CDK context attribute, either on the command line
-or by editing the `cdk.json` file. This may be helpful if you want to deploy changes to the stack with CDK in the
-future, without having to set the environment variable again.
+## Deploying the Holiday Service and a self-hosted Restate instance
 
 By default, the Holiday CDK app will deploy two stacks: a self-hosted Restate instance, and the Holiday service stack.
 
@@ -55,11 +50,8 @@ By default, the Holiday CDK app will deploy two stacks: a self-hosted Restate in
 npx cdk deploy --all
 ```
 
-If you are deploying this stack in a shared AWS account, you may want to specify a prefix for the stack names:
-
-```shell
-npx cdk deploy --all --context prefix=${USER}
-```
+If you are deploying this stack in a shared AWS account, you may want to specify a prefix for the stack names and other
+resource names that require uniqueness by appending `--context prefix=${USER}` to the CDK `deploy` command.
 
 You can also deploy only the self-hosted Restate stack as follows:
 
@@ -87,21 +79,54 @@ during deployment, you will need to use the same value here too):
 npx cdk destroy --all
 ```
 
-## Deploying against Restate managed service
+## Deploying on Restate Cloud
 
-`MANAGED_SERVICE_CLUSTER=<your-cluster> cdk deploy` will set up everything you need in your AWS account. To discover the Lambdas to your managed Restate cluster:
+You should have two pieces of information about your Restate Cloud: an identifier and an API authentication token.
+
+Create a secret in Secrets Manager to hold the authentication token. The secret name is up to you -- we suggest
+using `/restate/` and an appropriate prefix to avoid confusion:
 
 ```shell
-# get stack outputs into your shell
-eval $(aws cloudformation describe-stacks --stack RestateHolidayStack  --query "Stacks[].Outputs[]" | jq -r '.[] | "export " + .ExportName + "=" + .OutputValue')
-for arn in ${tripsLambdaArn} ${carsLambdaArn} ${paymentsLambdaArn} ${flightsLambdaArn}; do
-  curl -H "Authorization: Bearer <your-cluster-token>" https://<your-cluster>.dev.restate.cloud:9070/endpoints --json "{\"arn\": \"$arn\", \"assume_role_arn\": \"${assumeRoleArn}\"}"
-done
+export AUTH_TOKEN_ARN=$(aws secretsmanager create-secret \
+    --name /restate/${CLUSTER_ID}/auth-token --secret-string ${RESTATE_AUTH_TOKEN} \
+    --query ARN --output text
+)
 ```
 
-This discovered a specific version, so you'll need to run this again if you update the Lambda functions.
+Once you have the ARN for the secret, deploying the Holiday demo app is as easy as:
 
-See [the Managed Service docs](https://docs.restate.dev/restate/managed_service#giving-permission-for-your-cluster-to-invoke-your-lambdas) for more information
+```shell
+npx cdk deploy --all \
+    --context deploymentMode=cloud \
+    --context clusterId=${CLUSTER_ID} \
+    --context authTokenSecretArn=${AUTH_TOKEN_ARN}
+```
+
+Just like with the self-hosted stack you can also specify a unique prefix if you wish to deploy multiple copies of these
+stacks to the same AWS account with `--context prefix=${USER}`. You can also save these context attributes in the
+`cdk.json` file to avoid repetition for subsequent CDK operations.
+
+You can obtain the Restate ingress endpoint URL from the stack output:
+
+```shell
+export INGRESS=$(aws cloudformation describe-stacks \
+    --stack-name RestateStack \
+    --query "Stacks[0].Outputs[?OutputKey=='RestateIngressEndpoint'].OutputValue" \
+    --output text)
+```
+You are now ready to jump to [Invoking](#Invoking) and send some requests to the service.
+
+See the [Managed Service documentation](https://docs.restate.dev/restate/managed_service#giving-permission-for-your-cluster-to-invoke-your-lambdas)
+for more information about Restate Cloud.
+
+When you are done testing, you can easily delete all created resources with the command (if you specified a prefix or a
+deployment mode during deployment, you will need to use the same values here too):
+
+```shell
+npx cdk destroy --all \
+    --context clusterId=${CLUSTER_ID} \
+    --context authTokenSecretArn=${AUTH_TOKEN_ARN}
+```
 
 ## Deploying against local Restate
 
@@ -142,8 +167,7 @@ AWS_ENDPOINT=http://localhost:4566 FLIGHTS_TABLE_NAME=restate-holiday-Flights CA
 ## Invoking
 
 Note that we use the `-k` flag to skip certificate validation and make requests work against an ingress endpoint using a
-self-signed certificate. If you are testing against a Managed Restate service or with a valid certificate, you can omit
-this flag.
+self-signed certificate. If you are calling Restate Cloud, or have a valid certificate deployed, you can omit this flag.
 
 ```shell
 curl -k $INGRESS/trips/reserve --json '{}'
