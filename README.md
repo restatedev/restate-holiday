@@ -117,7 +117,7 @@ export INGRESS=$(aws cloudformation describe-stacks \
 ```
 You are now ready to jump to [Invoking](#Invoking) and send some requests to the service.
 
-See the [Restate Cloud documentation](https://docs.restate.dev/restate/restate_cloud#giving-permission-for-your-cluster-to-invoke-your-lambdas)
+See the [Restate Cloud documentation](https://docs.restate.dev/deploy/restate_cloud#giving-permission-for-your-cluster-to-invoke-your-lambdas)
 for more information.
 
 When you are done testing, you can easily delete all created resources with the command (if you specified a prefix or a
