@@ -1,8 +1,7 @@
 {
   "name": "restate-holiday",
-  "version": "0.0.1",
-  "description": "Template for JavaScript/TypeScript services running with Restate (https://github.com/restatedev/) ",
-  "main": "app.js",
+  "version": "1.0.0",
+  "description": "Restate Holiday: a Saga pattern demonstration",
   "type": "commonjs",
   "scripts": {
     "build": "tsc --noEmitOnError",
@@ -13,22 +12,22 @@
     "app-dev": "ts-node-dev --watch ./src --respawn --transpile-only ./src/app.ts"
   },
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.449.0",
-    "@aws-sdk/client-sns": "^3.449.0",
-    "@restatedev/restate-cdk": "^0.4.2",
-    "@restatedev/restate-sdk": "^0.5.0",
-    "aws-cdk-lib": "^2.108.0",
+    "@aws-sdk/client-dynamodb": "^3.592.0",
+    "@aws-sdk/client-sns": "^3.592.0",
+    "@restatedev/restate-cdk": "0.0.0-SNAPSHOT-20240613115150",
+    "@restatedev/restate-sdk": "^1.0.0",
+    "aws-cdk-lib": "^2.145.0",
     "constructs": "^10.3.0",
-    "uuid": "^9.0.1"
+    "uuid": "^10.0.0"
   },
   "devDependencies": {
     "@types/source-map-support": "^0.5.10",
-    "@types/uuid": "^9.0.7",
-    "aws-cdk": "^2.108.0",
-    "esbuild": "^0.18.12",
-    "prettier": "3.1.0",
-    "ts-node": "^10.9.1",
-    "ts-node-dev": "^1.1.1",
-    "typescript": "^5.0.2"
+    "@types/uuid": "^9.0.8",
+    "aws-cdk": "^2.145.0",
+    "esbuild": "^0.21.5",
+    "prettier": "3.3.2",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.4.5"
   }
 }

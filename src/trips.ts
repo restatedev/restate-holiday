@@ -1,8 +1,7 @@
 /*
- * Copyright (c) 2023 - Restate Software, Inc., Restate GmbH
+ * Copyright (c) 2024 - Restate Software, Inc., Restate GmbH
  *
- * This file is part of the Restate SDK for Node.js/TypeScript,
- * which is released under the MIT license.
+ * This file is part of the Restate examples released under the MIT license.
  *
  * You can find a copy of the license in file LICENSE in the root
  * directory of this repository or package, or at
@@ -11,21 +10,21 @@
 
 import * as restate from "@restatedev/restate-sdk";
 import { TerminalError } from "@restatedev/restate-sdk";
-import { carRentalService } from "./cars";
-import { flightsService } from "./flights";
-import { paymentsService } from "./payments";
+import { CarsObject } from "./cars";
+import { FlightsObject } from "./flights";
 import { PublishCommand, SNSClient } from "@aws-sdk/client-sns";
 import * as process from "process";
+import { PaymentsObject } from "./payments";
 
 const sns = new SNSClient({ endpoint: process.env.AWS_ENDPOINT });
 
-const reserve = async (ctx: restate.RpcContext, request?: { run_type?: string; trip_id?: string }) => {
+const reserve = async (ctx: restate.Context, request?: { run_type?: string; trip_id?: string }) => {
   console.log("reserve trip:", JSON.stringify(request, undefined, 2));
 
-  const tripID = request?.trip_id ?? ctx.rand.uuidv4();
+  const tripId = request?.trip_id ?? ctx.rand.uuidv4();
 
   let input = {
-    trip_id: tripID,
+    trip_id: tripId,
     depart_city: "Detroit",
     depart_time: "2021-07-07T06:00:00.000Z",
     arrive_city: "Frankfurt",
@@ -37,28 +36,28 @@ const reserve = async (ctx: restate.RpcContext, request?: { run_type?: string; t
   };
 
   // set up RPC clients
-  const flights = ctx.rpc(flightsService);
-  const carRentals = ctx.rpc(carRentalService);
-  const payments = ctx.rpc(paymentsService);
+  const flights = ctx.objectClient({ name: "flights" } as FlightsObject, tripId);
+  const cars = ctx.objectClient({ name: "cars" } as CarsObject, tripId);
+  const payments = ctx.objectClient({ name: "payments" } as PaymentsObject, tripId);
 
   // create an undo stack
   const undos = [];
   try {
     // call the flights Lambda to reserve, keeping track of how to cancel
-    const flight_booking = await flights.reserve(tripID, input);
-    undos.push(() => flights.cancel(tripID, flight_booking));
+    const flight_booking = await flights.reserve(input);
+    undos.push(() => flights.cancel(flight_booking));
 
     // RPC the rental service to reserve, keeping track of how to cancel
-    const car_booking = await carRentals.reserve(tripID, input);
-    undos.push(() => carRentals.cancel(tripID, car_booking));
+    const car_booking = await cars.reserve(input);
+    undos.push(() => cars.cancel(car_booking));
 
     // RPC the payments service to process, keeping track of how to refund
-    const payment = await payments.process(tripID, { run_type: input.run_type });
-    undos.push(() => payments.refund(tripID, payment));
+    const payment = await payments.process({ run_type: input.run_type });
+    undos.push(() => payments.refund(payment));
 
     // confirm the flight and car
-    await flights.confirm(tripID, flight_booking);
-    await flights.confirm(tripID, car_booking);
+    await flights.confirm(flight_booking);
+    await flights.confirm(car_booking);
 
     // simulate a failing SNS call
     if (request?.run_type === "failNotification") {
@@ -71,7 +70,7 @@ const reserve = async (ctx: restate.RpcContext, request?: { run_type?: string; t
     }
 
     // notify failure
-    await ctx.sideEffect(() => sns.send(new PublishCommand({
+    await ctx.run(() => sns.send(new PublishCommand({
       TopicArn: process.env.SNS_TOPIC,
       Message: "Your Travel Reservation Failed",
     })));
@@ -83,18 +82,25 @@ const reserve = async (ctx: restate.RpcContext, request?: { run_type?: string; t
   }
 
   // notify success
-  await ctx.sideEffect(async () => (process.env.SNS_TOPIC ? await sns.send(new PublishCommand({
+  await ctx.run(async () => (process.env.SNS_TOPIC ? await sns.send(new PublishCommand({
     TopicArn: process.env.SNS_TOPIC,
     Message: "Your Travel Reservation is Successful",
   })) : {}));
 
   return {
     status: "success",
-    trip_id: tripID,
+    trip_id: tripId,
   };
 };
 
-export const tripsRouter = restate.router({ reserve });
-export const tripsService: restate.ServiceApi<typeof tripsRouter> = { path: "trips" };
+export const tripsService = restate.service({
+  name: "trips",
+  handlers: {
+    reserve,
+  },
+});
 
-export const handler = restate.createLambdaApiGatewayHandler().bindRouter(tripsService.path, tripsRouter).handle();
+export const handler = restate
+  .endpoint()
+  .bind(tripsService)
+  .lambdaHandler();

@@ -1,8 +1,7 @@
 /*
- * Copyright (c) 2023 - Restate Software, Inc., Restate GmbH
+ * Copyright (c) 2024 - Restate Software, Inc., Restate GmbH
  *
- * This file is part of the Restate SDK for Node.js/TypeScript,
- * which is released under the MIT license.
+ * This file is part of the Restate examples released under the MIT license.
  *
  * You can find a copy of the license in file LICENSE in the root
  * directory of this repository or package, or at
@@ -18,11 +17,10 @@ const dynamo = new DynamoDBClient({ endpoint: process.env.AWS_ENDPOINT });
 
 export type FlightReserveParams = { rental: string; rental_from: string; rental_to: string; run_type?: string };
 const reserve = async (
-  ctx: restate.RpcContext,
-  tripID: string,
+  ctx: restate.ObjectContext,
   event: FlightReserveParams,
 ): Promise<{ booking_id: string }> => {
-  console.log("reserve flight:", tripID, JSON.stringify(event, undefined, 2));
+  console.log("reserve flight:", ctx.key, JSON.stringify(event, undefined, 2));
 
   const flightReservationID = ctx.rand.uuidv4();
   console.log("flightReservationID:", flightReservationID);
@@ -35,9 +33,9 @@ const reserve = async (
   const put = new PutItemCommand({
     TableName: process.env.FLIGHTS_TABLE_NAME,
     Item: {
-      pk: { S: tripID },
+      pk: { S: ctx.key },
       sk: { S: flightReservationID },
-      trip_id: { S: tripID },
+      trip_id: { S: ctx.key },
       id: { S: flightReservationID },
       rental: { S: event.rental },
       rental_from: { S: event.rental_from },
@@ -45,7 +43,7 @@ const reserve = async (
       transaction_status: { S: "pending" },
     },
   });
-  const result = await ctx.sideEffect(() => dynamo.send(put));
+  const result = await ctx.run(() => dynamo.send(put));
 
   console.log("inserted flight reservation:");
   console.log(result);
@@ -56,11 +54,10 @@ const reserve = async (
 type ConfirmParams = { booking_id: string; run_type?: string };
 
 const confirm = async (
-  ctx: restate.RpcContext,
-  tripID: string,
+  ctx: restate.ObjectContext,
   event: ConfirmParams,
 ): Promise<{ booking_id: string }> => {
-  console.log("confirm flight:", tripID, JSON.stringify(event, undefined, 2));
+  console.log("confirm flight:", ctx.key, JSON.stringify(event, undefined, 2));
 
   // Pass the parameter to fail this step
   if (event.run_type === "failFlightsConfirmation") {
@@ -70,7 +67,7 @@ const confirm = async (
   const update = new UpdateItemCommand({
     TableName: process.env.FLIGHTS_TABLE_NAME,
     Key: {
-      pk: { S: tripID },
+      pk: { S: ctx.key },
       sk: { S: event.booking_id },
     },
     UpdateExpression: "set transaction_status = :booked",
@@ -79,7 +76,7 @@ const confirm = async (
     },
   });
 
-  const result = await ctx.sideEffect(() => dynamo.send(update));
+  const result = await ctx.run(() => dynamo.send(update));
 
   console.log("confirmed flight reservation:");
   console.log(result);
@@ -89,18 +86,18 @@ const confirm = async (
 
 type CancelParams = { booking_id: string };
 
-const cancel = async (ctx: restate.RpcContext, tripID: string, event: CancelParams) => {
-  console.log("cancel flight:", tripID, JSON.stringify(event, undefined, 2));
+const cancel = async (ctx: restate.ObjectContext, event: CancelParams) => {
+  console.log("cancel flight:", ctx.key, JSON.stringify(event, undefined, 2));
 
   const del = new DeleteItemCommand({
     TableName: process.env.FLIGHTS_TABLE_NAME,
     Key: {
-      pk: { S: tripID },
+      pk: { S: ctx.key },
       sk: { S: event.booking_id },
     },
   });
 
-  const result = await ctx.sideEffect(() => dynamo.send(del));
+  const result = await ctx.run(() => dynamo.send(del));
 
   console.log("deleted flight reservation:");
   console.log(result);
@@ -108,10 +105,11 @@ const cancel = async (ctx: restate.RpcContext, tripID: string, event: CancelPara
   return {};
 };
 
-export const flightsRouter = restate.keyedRouter({ reserve, confirm, cancel });
-export const flightsService: restate.ServiceApi<typeof flightsRouter> = { path: "flights" };
+export const flightsObject = restate.object({ name: "flights", handlers: { reserve, confirm, cancel } });
+
+export type FlightsObject = typeof flightsObject;
 
 export const handler = restate
-  .createLambdaApiGatewayHandler()
-  .bindKeyedRouter(flightsService.path, flightsRouter)
-  .handle();
+  .endpoint()
+  .bind(flightsObject)
+  .lambdaHandler();

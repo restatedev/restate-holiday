@@ -1,8 +1,7 @@
 /*
- * Copyright (c) 2023 - Restate Software, Inc., Restate GmbH
+ * Copyright (c) 2024 - Restate Software, Inc., Restate GmbH
  *
- * This file is part of the Restate SDK for Node.js/TypeScript,
- * which is released under the MIT license.
+ * This file is part of the Restate examples released under the MIT license.
  *
  * You can find a copy of the license in file LICENSE in the root
  * directory of this repository or package, or at
@@ -24,8 +23,8 @@ export type CarReserveParams = {
   run_type?: string;
 };
 
-const reserve = async (ctx: restate.RpcContext, tripID: string, event: CarReserveParams) => {
-  console.log("reserve car:", tripID, JSON.stringify(event, undefined, 2));
+const reserve = async (ctx: restate.ObjectContext, event: CarReserveParams) => {
+  console.log("reserve car:", ctx.key, JSON.stringify(event, undefined, 2));
 
   const carRentalReservationID = ctx.rand.uuidv4();
   console.log("carRentalReservationID:", carRentalReservationID);
@@ -38,9 +37,9 @@ const reserve = async (ctx: restate.RpcContext, tripID: string, event: CarReserv
   const put = new PutItemCommand({
     TableName: process.env.CARS_TABLE_NAME,
     Item: {
-      pk: { S: tripID },
+      pk: { S: ctx.key },
       sk: { S: carRentalReservationID },
-      trip_id: { S: tripID },
+      trip_id: { S: ctx.key },
       id: { S: carRentalReservationID },
       depart_city: { S: event.depart_city },
       depart_time: { S: event.depart_time },
@@ -49,7 +48,7 @@ const reserve = async (ctx: restate.RpcContext, tripID: string, event: CarReserv
       transaction_status: { S: "pending" },
     },
   });
-  const result = await ctx.sideEffect(() => dynamo.send(put));
+  const result = await ctx.run(() => dynamo.send(put));
 
   console.log("inserted car rental reservation:");
   console.log(result);
@@ -59,8 +58,8 @@ const reserve = async (ctx: restate.RpcContext, tripID: string, event: CarReserv
 
 type ConfirmParams = { booking_id: string; run_type?: string };
 
-const confirm = async (ctx: restate.RpcContext, tripID: string, event: ConfirmParams) => {
-  console.log("confirm car:", tripID, JSON.stringify(event, undefined, 2));
+const confirm = async (ctx: restate.ObjectContext, event: ConfirmParams) => {
+  console.log("confirm car:", ctx.key, JSON.stringify(event, undefined, 2));
 
   // Pass the parameter to fail this step
   if (event.run_type === "failCarRentalConfirmation") {
@@ -70,7 +69,7 @@ const confirm = async (ctx: restate.RpcContext, tripID: string, event: ConfirmPa
   const update = new UpdateItemCommand({
     TableName: process.env.CARS_TABLE_NAME,
     Key: {
-      pk: { S: tripID },
+      pk: { S: ctx.key },
       sk: { S: event.booking_id },
     },
     UpdateExpression: "set transaction_status = :booked",
@@ -79,7 +78,7 @@ const confirm = async (ctx: restate.RpcContext, tripID: string, event: ConfirmPa
     },
   });
 
-  const result = await ctx.sideEffect(() => dynamo.send(update));
+  const result = await ctx.run(() => dynamo.send(update));
 
   console.log("confirmed car rental reservation:");
   console.log(result);
@@ -89,18 +88,18 @@ const confirm = async (ctx: restate.RpcContext, tripID: string, event: ConfirmPa
 
 type CancelParams = { booking_id: string };
 
-const cancel = async (ctx: restate.RpcContext, tripID: string, event: CancelParams) => {
-  console.log("cancel car:", tripID, JSON.stringify(event, undefined, 2));
+const cancel = async (ctx: restate.ObjectContext, event: CancelParams) => {
+  console.log("cancel car:", ctx.key, JSON.stringify(event, undefined, 2));
 
   const del = new DeleteItemCommand({
     TableName: process.env.CARS_TABLE_NAME,
     Key: {
-      pk: { S: tripID },
+      pk: { S: ctx.key },
       sk: { S: event.booking_id },
     },
   });
 
-  const result = await ctx.sideEffect(() => dynamo.send(del));
+  const result = await ctx.run(() => dynamo.send(del));
 
   console.log("deleted car rental reservation:");
   console.log(result);
@@ -108,10 +107,14 @@ const cancel = async (ctx: restate.RpcContext, tripID: string, event: CancelPara
   return {};
 };
 
-export const carRentalRouter = restate.keyedRouter({ reserve, confirm, cancel });
-export const carRentalService: restate.ServiceApi<typeof carRentalRouter> = { path: "cars" };
+export const carsObject = restate.object({
+  name: "cars",
+  handlers: { reserve, confirm, cancel },
+});
+
+export type CarsObject = typeof carsObject;
 
 export const handler = restate
-  .createLambdaApiGatewayHandler()
-  .bindKeyedRouter(carRentalService.path, carRentalRouter)
-  .handle();
+  .endpoint()
+  .bind(carsObject)
+  .lambdaHandler();

@@ -1,8 +1,7 @@
 /*
- * Copyright (c) 2023 - Restate Software, Inc., Restate GmbH
+ * Copyright (c) 2024 - Restate Software, Inc., Restate GmbH
  *
- * This file is part of the Restate SDK for Node.js/TypeScript,
- * which is released under the MIT license.
+ * This file is part of the Restate examples released under the MIT license.
  *
  * You can find a copy of the license in file LICENSE in the root
  * directory of this repository or package, or at
@@ -12,56 +11,17 @@
 import "source-map-support/register";
 import * as cdk from "aws-cdk-lib";
 import { HolidayServiceStack } from "../lib/holiday-service-stack";
-import { SelfHostedRestateStack } from "../lib/self-hosted-restate-stack";
-import { RestateCloudStack } from "../lib/restate-cloud-stack";
-
-enum DeploymentMode {
-  SELF_HOSTED = "self-hosted",
-  RESTATE_CLOUD = "cloud",
-}
-
-function addPrefix(name: string, prefix?: string) {
-  if (!prefix) return name;
-  return `${prefix}-${name}`;
-}
 
 const app = new cdk.App();
-const prefix = app.node.tryGetContext("prefix");
+new HolidayServiceStack(app, "HolidayTripsServiceStack", {
+  restateCloudEnvironmentId: app.node.tryGetContext("cloudEnvironmentId"),
 
-const deploymentMode = app.node.tryGetContext("deploymentMode") ?? DeploymentMode.SELF_HOSTED;
-let restateStack: RestateCloudStack | SelfHostedRestateStack;
-switch (deploymentMode) {
-  case DeploymentMode.RESTATE_CLOUD:
-    console.log("Deploying in managed service mode.");
+  // Setting an explicit token secret ARN takes precedence over other methods.
+  authTokenSecretArn: app.node.tryGetContext("authTokenSecretArn"),
 
-    restateStack = new RestateCloudStack(app, addPrefix("RestateStack", prefix), {
-      prefix,
-      clusterId: requireContextAttribute(app, "clusterId"),
-      authTokenSecretArn: requireContextAttribute(app, "authTokenSecretArn"),
-    });
-    break;
+  // Alternatively, you can set the token as plaintext. The secret will appear in the CloudFormation template!
+  authTokenUnsafePlaintext: app.node.tryGetContext("authToken"),
 
-  case DeploymentMode.SELF_HOSTED:
-    console.log("Deploying in self-hosted mode.");
-
-    restateStack = new SelfHostedRestateStack(app, addPrefix("RestateStack", prefix), {
-      prefix,
-    });
-    break;
-
-  default:
-    throw new Error(`Unknown deployment mode "${deploymentMode}". Expected one of: ${Object.values(DeploymentMode)}`);
-}
-
-new HolidayServiceStack(app, addPrefix("HolidayTripsServiceStack", prefix), {
-  restateInstance: restateStack.restateInstance,
-  registrationProviderToken: restateStack?.registrationProviderToken.value,
+  // If you don't provide a secret, the service deployer will attempt to use a secret with a name
+  // "/restate-holiday/auth-token". See create-auth-token-secret.ts for an example of how to create it.
 });
-
-function requireContextAttribute(app: cdk.App, name: string) {
-  const value = app.node.tryGetContext(name);
-  if (!value) {
-    throw new Error(`Required CDK application context parameter missing: "${name}"`);
-  }
-  return value;
-}
