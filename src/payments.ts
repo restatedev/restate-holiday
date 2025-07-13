@@ -8,7 +8,7 @@
  * https://github.com/restatedev/sdk-typescript/blob/main/LICENSE
  */
 
-import * as restate from "@restatedev/restate-sdk";
+import * as restate from "@restatedev/restate-sdk/lambda";
 import { TerminalError } from "@restatedev/restate-sdk";
 import { DeleteItemCommand, DynamoDBClient, PutItemCommand } from "@aws-sdk/client-dynamodb";
 
@@ -80,7 +80,4 @@ export const paymentsObject = restate.object({
 
 export type PaymentsObject = typeof paymentsObject;
 
-export const handler = restate
-  .endpoint()
-  .bind(paymentsObject)
-  .lambdaHandler();
+export const handler = restate.endpoint().bind(paymentsObject).handler();

@@ -8,7 +8,7 @@
  * https://github.com/restatedev/sdk-typescript/blob/main/LICENSE
  */
 
-import * as restate from "@restatedev/restate-sdk";
+import * as restate from "@restatedev/restate-sdk/lambda";
 import { TerminalError } from "@restatedev/restate-sdk";
 import { DeleteItemCommand, DynamoDBClient, PutItemCommand, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
 import process from "process";
@@ -16,10 +16,7 @@ import process from "process";
 const dynamo = new DynamoDBClient({ endpoint: process.env.AWS_ENDPOINT });
 
 export type FlightReserveParams = { rental: string; rental_from: string; rental_to: string; run_type?: string };
-const reserve = async (
-  ctx: restate.ObjectContext,
-  event: FlightReserveParams,
-): Promise<{ booking_id: string }> => {
+const reserve = async (ctx: restate.ObjectContext, event: FlightReserveParams): Promise<{ booking_id: string }> => {
   console.log("reserve flight:", ctx.key, JSON.stringify(event, undefined, 2));
 
   const flightReservationID = ctx.rand.uuidv4();
@@ -53,10 +50,7 @@ const reserve = async (
 
 type ConfirmParams = { booking_id: string; run_type?: string };
 
-const confirm = async (
-  ctx: restate.ObjectContext,
-  event: ConfirmParams,
-): Promise<{ booking_id: string }> => {
+const confirm = async (ctx: restate.ObjectContext, event: ConfirmParams): Promise<{ booking_id: string }> => {
   console.log("confirm flight:", ctx.key, JSON.stringify(event, undefined, 2));
 
   // Pass the parameter to fail this step
@@ -109,7 +103,4 @@ export const flightsObject = restate.object({ name: "flights", handlers: { reser
 
 export type FlightsObject = typeof flightsObject;
 
-export const handler = restate
-  .endpoint()
-  .bind(flightsObject)
-  .lambdaHandler();
+export const handler = restate.endpoint().bind(flightsObject).handler();

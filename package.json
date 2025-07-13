@@ -14,8 +14,8 @@
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.592.0",
     "@aws-sdk/client-sns": "^3.592.0",
-    "@restatedev/restate-cdk": "0.0.0-SNAPSHOT-20240613115150",
-    "@restatedev/restate-sdk": "^1.0.0",
+    "@restatedev/restate-cdk": "^1.4.0",
+    "@restatedev/restate-sdk": "^1.7.3",
     "aws-cdk-lib": "^2.145.0",
     "constructs": "^10.3.0",
     "uuid": "^10.0.0"

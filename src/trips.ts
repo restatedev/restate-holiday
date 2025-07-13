@@ -8,7 +8,7 @@
  * https://github.com/restatedev/sdk-typescript/blob/main/LICENSE
  */
 
-import * as restate from "@restatedev/restate-sdk";
+import * as restate from "@restatedev/restate-sdk/lambda";
 import { TerminalError } from "@restatedev/restate-sdk";
 import { CarsObject } from "./cars";
 import { FlightsObject } from "./flights";
@@ -70,22 +70,35 @@ const reserve = async (ctx: restate.Context, request?: { run_type?: string; trip
     }
 
     // notify failure
-    await ctx.run(() => sns.send(new PublishCommand({
-      TopicArn: process.env.SNS_TOPIC,
-      Message: "Your Travel Reservation Failed",
-    })));
+    await ctx.run(() =>
+      sns.send(
+        new PublishCommand({
+          TopicArn: process.env.SNS_TOPIC,
+          Message: "Your Travel Reservation Failed",
+        }),
+      ),
+    );
 
     // exit with an error
-    throw new TerminalError(`Travel reservation failed with err '${e}'; successfully applied ${undos.length} compensations`, {
-      cause: e,
-    });
+    throw new TerminalError(
+      `Travel reservation failed with err '${e}'; successfully applied ${undos.length} compensations`,
+      {
+        cause: e,
+      },
+    );
   }
 
   // notify success
-  await ctx.run(async () => (process.env.SNS_TOPIC ? await sns.send(new PublishCommand({
-    TopicArn: process.env.SNS_TOPIC,
-    Message: "Your Travel Reservation is Successful",
-  })) : {}));
+  await ctx.run(async () =>
+    process.env.SNS_TOPIC
+      ? await sns.send(
+          new PublishCommand({
+            TopicArn: process.env.SNS_TOPIC,
+            Message: "Your Travel Reservation is Successful",
+          }),
+        )
+      : {},
+  );
 
   return {
     status: "success",
@@ -100,7 +113,4 @@ export const tripsService = restate.service({
   },
 });
 
-export const handler = restate
-  .endpoint()
-  .bind(tripsService)
-  .lambdaHandler();
+export const handler = restate.endpoint().bind(tripsService).handler();

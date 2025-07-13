@@ -14,6 +14,7 @@ import * as dynamodb from "aws-cdk-lib/aws-dynamodb";
 import * as iam from "aws-cdk-lib/aws-iam";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as logs from "aws-cdk-lib/aws-logs";
+import * as ec2 from "aws-cdk-lib/aws-ec2";
 import * as secrets_manager from "aws-cdk-lib/aws-secretsmanager";
 import { NodejsFunction } from "aws-cdk-lib/aws-lambda-nodejs";
 import * as sns from "aws-cdk-lib/aws-sns";
@@ -113,13 +114,16 @@ export class HolidayServiceStack extends cdk.Stack {
     } else if (props.deploySelfHostedRestateEnvironment) {
       restateEnvironment = new restate.SingleNodeRestateDeployment(this, "Restate", {
         ...props,
-        restateTag: "1.0.1",
+        restateTag: "1.4.2",
         tracing: restate.TracingMode.AWS_XRAY,
         logGroup: new logs.LogGroup(this, "RestateLogGroup", {
           logGroupName: "/restate-holiday/restate-server",
           removalPolicy: cdk.RemovalPolicy.DESTROY, // Set to RETAIN if you'd prefer to keep the logs after stack deletion
           retention: logs.RetentionDays.ONE_MONTH,
         }),
+        networkConfiguration: {
+          subnetType: ec2.SubnetType.PUBLIC,
+        },
       });
 
       new cdk.CfnOutput(this, "RestateIngressUrl", {
@@ -133,7 +137,9 @@ export class HolidayServiceStack extends cdk.Stack {
     deployer.deployService("trips", tripsLambda.currentVersion, restateEnvironment);
     deployer.deployService("flights", flightsLambda.currentVersion, restateEnvironment);
     deployer.deployService("cars", carsLambda.currentVersion, restateEnvironment);
-    deployer.deployService("payments", paymentsLambda.latestVersion, restateEnvironment, { configurationVersion: new Date().toISOString() });
+    deployer.deployService("payments", paymentsLambda.latestVersion, restateEnvironment, {
+      configurationVersion: new Date().toISOString(),
+    });
   }
 }
 
@@ -160,13 +166,12 @@ function lambdaHandler(scope: Construct, id: string, handler: string, environmen
 
 function restateCloudInvokerRole(scope: Construct, environmentId: string) {
   const invokerRole = new iam.Role(scope, "InvokerRole", {
-    assumedBy: new iam.AccountPrincipal("654654156625")
-      .withConditions({
-        "StringEquals": {
-          "sts:ExternalId": environmentId,
-          "aws:PrincipalArn": "arn:aws:iam::654654156625:role/RestateCloud",
-        },
-      }),
+    assumedBy: new iam.AccountPrincipal("654654156625").withConditions({
+      StringEquals: {
+        "sts:ExternalId": environmentId,
+        "aws:PrincipalArn": "arn:aws:iam::654654156625:role/RestateCloud",
+      },
+    }),
   });
   invokerRole.assumeRolePolicy!.addStatements(
     new iam.PolicyStatement({

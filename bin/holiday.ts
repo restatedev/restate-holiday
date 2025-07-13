@@ -14,7 +14,9 @@ import { HolidayServiceStack } from "../lib/holiday-service-stack";
 
 const app = new cdk.App();
 new HolidayServiceStack(app, "HolidayTripsServiceStack", {
+  env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
   restateCloudEnvironmentId: app.node.tryGetContext("cloudEnvironmentId"),
+  deploySelfHostedRestateEnvironment: app.node.tryGetContext("deploySelfHostedRestateEnvironment"),
 
   // Setting an explicit token secret ARN takes precedence over other methods.
   authTokenSecretArn: app.node.tryGetContext("authTokenSecretArn"),
